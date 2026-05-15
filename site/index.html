@@ -1,0 +1,946 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Neospace — Wiki da Otimização de IA</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --border: #30363d;
+    --text: #c9d1d9;
+    --muted: #8b949e;
+    --accent: #58a6ff;
+    --accent2: #3fb950;
+    --accent3: #d2a8ff;
+    --code-bg: #0d1117;
+    --keyword: #ff7b72;
+    --string: #a5d6ff;
+    --comment: #8b949e;
+    --func: #d2a8ff;
+    --number: #79c0ff;
+    --type: #ffa657;
+    --sidebar-w: 280px;
+    --done: #3fb950;
+    --pending: #30363d;
+    --in-progress: #d2991d;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; display: flex; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  /* Sidebar */
+  .sidebar {
+    width: var(--sidebar-w); height: 100vh; position: fixed; top:0; left:0;
+    background: var(--surface); border-right: 1px solid var(--border);
+    overflow-y: auto; z-index: 100; padding: 20px 0;
+  }
+  .sidebar::-webkit-scrollbar { width: 4px; }
+  .sidebar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  .sidebar-header { padding: 0 20px 16px; border-bottom: 1px solid var(--border); margin-bottom: 12px; }
+  .sidebar-header h1 { font-size: 16px; font-weight: 600; color: var(--text); }
+  .sidebar-header p { font-size: 11px; color: var(--muted); margin-top: 4px; }
+  .sidebar-section { padding: 12px 20px 4px; }
+  .sidebar-section h2 { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; font-weight: 600; }
+  .sidebar-nav { list-style: none; }
+  .sidebar-nav li a {
+    display: flex; align-items: center; gap: 8px;
+    padding: 5px 20px; font-size: 13px; color: var(--muted);
+    border-left: 2px solid transparent; transition: all 0.15s;
+  }
+  .sidebar-nav li a:hover { color: var(--text); background: rgba(255,255,255,0.03); text-decoration: none; }
+  .sidebar-nav li a.active { color: var(--accent); border-left-color: var(--accent); background: rgba(88,166,255,0.08); }
+  .status-dot {
+    width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+    border: 1.5px solid;
+  }
+  .status-dot.done { background: var(--done); border-color: var(--done); box-shadow: 0 0 6px rgba(63,185,80,0.5); }
+  .status-dot.pending { background: transparent; border-color: var(--pending); }
+  .status-dot.in-progress { background: var(--in-progress); border-color: var(--in-progress); box-shadow: 0 0 6px rgba(210,153,29,0.4); }
+
+  /* Main */
+  .main { margin-left: var(--sidebar-w); flex:1; min-width:0; }
+  .hero {
+    padding: 60px 40px 40px; border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, rgba(88,166,255,0.05) 0%, transparent 100%);
+  }
+  .hero h2 { font-size: 28px; font-weight: 700; margin-bottom: 8px; }
+  .hero p { font-size: 15px; color: var(--muted); max-width: 700px; }
+  .hero-stats { display: flex; gap: 24px; margin-top: 20px; }
+  .hero-stat { text-align: center; }
+  .hero-stat .num { font-size: 28px; font-weight: 700; color: var(--accent); }
+  .hero-stat .label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+
+  /* Timeline */
+  .timeline { position: relative; padding: 40px; }
+  .timeline::before {
+    content: ''; position: absolute; left: 60px; top: 0; bottom: 0;
+    width: 2px; background: var(--border);
+  }
+
+  /* Section divider */
+  .section-divider {
+    position: relative; margin: 16px 0 40px 0; padding-left: 80px;
+  }
+  .section-divider h2 {
+    font-size: 18px; font-weight: 600; color: var(--accent2);
+    padding: 8px 0;
+  }
+
+  /* Topic card */
+  .topic { position: relative; margin-bottom: 40px; padding-left: 80px; }
+  .topic:last-child { margin-bottom: 80px; }
+  .topic-marker {
+    position: absolute; left: 51px; top: 8px;
+    width: 20px; height: 20px; border-radius: 50%;
+    background: var(--surface); border: 2px solid var(--accent);
+    z-index: 2; transition: all 0.3s;
+  }
+  .topic.visible .topic-marker { background: var(--accent); box-shadow: 0 0 12px rgba(88,166,255,0.5); }
+  .topic-marker.done { border-color: var(--done); }
+  .topic.visible .topic-marker.done { background: var(--done); box-shadow: 0 0 12px rgba(63,185,80,0.5); }
+  .topic-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; overflow: hidden; transition: border-color 0.3s;
+  }
+  .topic.visible .topic-card { border-color: #484f58; }
+  .topic-header {
+    padding: 20px 24px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
+  }
+  .topic-header h3 { font-size: 20px; font-weight: 600; }
+  .topic-badge {
+    font-size: 11px; padding: 2px 8px; border-radius: 12px; font-weight: 500;
+  }
+  .topic-badge.done { color: var(--done); background: rgba(63,185,80,0.1); }
+  .topic-badge.pending { color: var(--muted); background: rgba(139,148,158,0.1); }
+  .topic-body { padding: 24px; }
+  .topic-body h4 {
+    font-size: 14px; font-weight: 600; color: var(--accent2);
+    margin: 24px 0 8px; text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .topic-body h4:first-child { margin-top: 0; }
+  .topic-body p { font-size: 14px; color: var(--text); margin-bottom: 12px; }
+  .topic-body ul, .topic-body ol { margin: 0 0 12px 20px; font-size: 14px; }
+  .topic-body ul li, .topic-body ol li { margin-bottom: 4px; }
+  .topic-body table {
+    width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 13px;
+  }
+  .topic-body table th {
+    text-align: left; padding: 8px 12px; background: rgba(255,255,255,0.04);
+    border-bottom: 2px solid var(--border); font-weight: 600; color: var(--accent2);
+  }
+  .topic-body table td {
+    padding: 8px 12px; border-bottom: 1px solid var(--border);
+  }
+  .topic-body strong { color: var(--accent3); }
+  .topic-body blockquote {
+    border-left: 3px solid var(--accent); padding: 8px 16px;
+    margin: 12px 0; background: rgba(88,166,255,0.05); border-radius: 0 6px 6px 0;
+  }
+
+  /* Code blocks */
+  .code-block {
+    background: var(--code-bg); border: 1px solid var(--border);
+    border-radius: 6px; margin: 12px 0; overflow: hidden;
+  }
+  .code-block .lang-tag {
+    font-size: 11px; color: var(--muted); padding: 6px 12px;
+    border-bottom: 1px solid var(--border); display: block;
+  }
+  .code-block pre {
+    padding: 16px; overflow-x: auto; font-size: 13px; line-height: 1.55;
+    font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'SF Mono', Consolas, monospace;
+  }
+  .code-block code { color: var(--text); }
+
+  /* Progress bar */
+  .progress-bar {
+    position: fixed; top: 0; left: var(--sidebar-w); right: 0; height: 3px;
+    background: transparent; z-index: 200;
+  }
+  .progress-bar .fill {
+    height: 100%; background: var(--accent);
+    width: 0%; transition: width 0.1s linear;
+  }
+
+  /* Empty topic placeholder */
+  .topic-placeholder {
+    padding: 40px 24px; text-align: center; color: var(--muted);
+  }
+  .topic-placeholder .icon { font-size: 32px; margin-bottom: 8px; }
+
+  /* Hamburger */
+  .hamburger { display: none; position: fixed; top: 12px; left: 12px; z-index: 300; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; cursor: pointer; color: var(--text); font-size: 18px; }
+
+  @media (max-width: 768px) {
+    .sidebar { transform: translateX(-100%); transition: transform 0.25s; width: 100%; max-width: 300px; }
+    .sidebar.open { transform: translateX(0); }
+    .main { margin-left: 0; }
+    .hamburger { display: block; }
+    .timeline { padding: 20px 16px; }
+    .timeline::before { left: 20px; }
+    .topic, .section-divider { padding-left: 40px; }
+    .topic-marker { left: 11px; }
+    .hero { padding: 40px 20px 24px; }
+    .hero h2 { font-size: 22px; }
+    .progress-bar { left: 0; }
+    .hero-stats { flex-wrap: wrap; gap: 16px; }
+  }
+</style>
+</head>
+<body>
+
+<button class="hamburger" onclick="toggleSidebar()" aria-label="Menu">☰</button>
+
+<div class="progress-bar"><div class="fill" id="progressFill"></div></div>
+
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-header">
+    <h1>⚡ Neospace Wiki</h1>
+    <p>Estudo progressivo de otimização de treinamento de IA</p>
+  </div>
+  <nav>
+    <div class="sidebar-section"><h2>Eficiência de Atenção</h2></div>
+    <ul class="sidebar-nav">
+      <li><a href="#flash-attention" onclick="closeSidebar()"><span class="status-dot done"></span>Flash Attention</a></li>
+      <li><a href="#multi-query" onclick="closeSidebar()"><span class="status-dot pending"></span>Multi-Query Attention</a></li>
+      <li><a href="#grouped-query" onclick="closeSidebar()"><span class="status-dot pending"></span>Grouped Query Attention</a></li>
+    </ul>
+
+    <div class="sidebar-section"><h2>Paralelismo</h2></div>
+    <ul class="sidebar-nav">
+      <li><a href="#ddp" onclick="closeSidebar()"><span class="status-dot pending"></span>Data Parallel (DDP)</a></li>
+      <li><a href="#fsdp" onclick="closeSidebar()"><span class="status-dot pending"></span>FSDP</a></li>
+      <li><a href="#pipeline" onclick="closeSidebar()"><span class="status-dot pending"></span>Pipeline Parallelism</a></li>
+      <li><a href="#tensor" onclick="closeSidebar()"><span class="status-dot pending"></span>Tensor Parallelism</a></li>
+    </ul>
+
+    <div class="sidebar-section"><h2>Fine-tuning Eficiente</h2></div>
+    <ul class="sidebar-nav">
+      <li><a href="#lora" onclick="closeSidebar()"><span class="status-dot pending"></span>LoRA</a></li>
+      <li><a href="#qlora" onclick="closeSidebar()"><span class="status-dot pending"></span>QLoRA</a></li>
+      <li><a href="#prefix-tuning" onclick="closeSidebar()"><span class="status-dot pending"></span>Prefix Tuning</a></li>
+    </ul>
+
+    <div class="sidebar-section"><h2>Quantização</h2></div>
+    <ul class="sidebar-nav">
+      <li><a href="#int8" onclick="closeSidebar()"><span class="status-dot pending"></span>INT8</a></li>
+      <li><a href="#int4" onclick="closeSidebar()"><span class="status-dot pending"></span>INT4</a></li>
+      <li><a href="#gptq" onclick="closeSidebar()"><span class="status-dot pending"></span>GPTQ</a></li>
+      <li><a href="#awq" onclick="closeSidebar()"><span class="status-dot pending"></span>AWQ</a></li>
+    </ul>
+
+    <div class="sidebar-section"><h2>Arquiteturas Modernas</h2></div>
+    <ul class="sidebar-nav">
+      <li><a href="#moe" onclick="closeSidebar()"><span class="status-dot pending"></span>Mixture of Experts</a></li>
+      <li><a href="#mamba" onclick="closeSidebar()"><span class="status-dot pending"></span>Mamba (SSM)</a></li>
+      <li><a href="#sparse" onclick="closeSidebar()"><span class="status-dot pending"></span>Sparse Attention</a></li>
+    </ul>
+
+    <div class="sidebar-section"><h2>Papers Importantes</h2></div>
+    <ul class="sidebar-nav">
+      <li><a href="#paper-attention" onclick="closeSidebar()"><span class="status-dot pending"></span>Attention Is All You Need</a></li>
+      <li><a href="#paper-flash" onclick="closeSidebar()"><span class="status-dot done"></span>Flash Attention (2022)</a></li>
+      <li><a href="#paper-lora" onclick="closeSidebar()"><span class="status-dot pending"></span>LoRA (2021)</a></li>
+      <li><a href="#paper-deepseek" onclick="closeSidebar()"><span class="status-dot pending"></span>DeepSeek V4 (2026)</a></li>
+    </ul>
+
+    <div class="sidebar-section"><h2>📖 Glossário</h2></div>
+    <ul class="sidebar-nav">
+      <li><a href="#glossario" onclick="closeSidebar()"><span class="status-dot done"></span>Termos Técnicos</a></li>
+    </ul>
+  </nav>
+</aside>
+
+<main class="main" id="mainContent">
+  <section class="hero">
+    <h2>Evolução da Otimização de IA</h2>
+    <p>Uma jornada progressiva pelas técnicas que transformaram o treinamento de modelos de linguagem — desde os fundamentos matemáticos até as arquiteturas que rodam em milhares de GPUs. Abordagem linear: um conceito por vez, do básico ao avançado.</p>
+    <div class="hero-stats">
+      <div class="hero-stat"><div class="num">17</div><div class="label">Tópicos na trilha</div></div>
+      <div class="hero-stat"><div class="num">1</div><div class="label">Dominados</div></div>
+      <div class="hero-stat"><div class="num">5.9%</div><div class="label">Progresso</div></div>
+    </div>
+  </section>
+
+  <section class="timeline">
+
+    <!-- ==================== EFICIÊNCIA DE ATENÇÃO ==================== -->
+    <div class="section-divider" id="sec-atencao"><h2>Técnicas de Eficiência de Atenção</h2></div>
+
+    <!-- Flash Attention -->
+    <article class="topic" id="flash-attention">
+      <div class="topic-marker done"></div>
+      <div class="topic-card">
+        <div class="topic-header">
+          <h3>Flash Attention — Atenção Exata com O(N) de Memória</h3>
+          <span class="topic-badge done">🟢 Dominado</span>
+        </div>
+        <div class="topic-body">
+
+<!-- ===== O PROBLEMA ===== -->
+<h4>O Problema</h4>
+<p>Dados Q, K, V ∈ ℝ<sup>N×d</sup>, a atenção padrão calcula:</p>
+<div class="code-block"><span class="lang-tag">Atenção Padrão — 3 passos, 2 escritas N×N na HBM</span>
+<pre><code>S = Q @ K.T          // [N×N] → escreve na HBM
+P = softmax(S)        // [N×N] → escreve na HBM
+O = P @ V             // [N×d] → escreve na HBM
+
+Total de acessos HBM: Θ(Nd + N²)</code></pre></div>
+<p>Para N=1024, d=64, 16 cabeças, batch=64 em A100: <strong>40.3 GB</strong> de leitura/escrita na HBM. O Flash Attention reduz isso para <strong>4.4 GB</strong> — 9× menos — eliminando as escritas das matrizes S e P. A GPU não é lenta calculando; é lenta <strong>movendo dados</strong>.</p>
+
+<table>
+  <tr><th>Comprimento N</th><th>Matriz N×N (FP16)</th><th>Economia FA</th></tr>
+  <tr><td>1,024</td><td>2 MB</td><td>10×</td></tr>
+  <tr><td>4,096</td><td>34 MB</td><td>20×</td></tr>
+  <tr><td>32,768</td><td>2.1 GB</td><td>~50×</td></tr>
+  <tr><td>65,536</td><td>8.6 GB</td><td>~100×</td></tr>
+</table>
+
+<h4>Contexto Histórico</h4>
+<p>Antes de 2022, a comunidade tentava resolver O(N²) com aproximações: <a href="#glossario-sparse">sparse attention</a>, <a href="#glossario-linformer">Linformer</a> (projeção low-rank), <a href="#glossario-performer">Performer</a> (FAVOR+). Todas perdiam qualidade. O insight veio de <strong>Rabe & Staats (2021)</strong>: "Self-Attention Does Not Need O(n²) Memory" — provaram que tiling funciona para atenção, mas sem implementação IO-aware eficiente. O Flash Attention pegou essa ideia e construiu um kernel CUDA que atinge o <strong>limite inferior teórico</strong> de acessos à memória.</p>
+
+<h4>Intuição Central</h4>
+<p>A GPU tem dois níveis de memória radicalmente diferentes:</p>
+<table>
+  <tr><th>Memória</th><th>Capacidade (A100)</th><th>Banda</th><th>Latência</th></tr>
+  <tr><td>HBM (VRAM)</td><td>40-80 GB</td><td>1.5-2.0 TB/s</td><td>~300 ciclos</td></tr>
+  <tr><td>SRAM (shared mem)</td><td>192 KB / SM</td><td>~19 TB/s</td><td>~20-30 ciclos</td></tr>
+</table>
+<p>O algoritmo ingênuo trata a GPU como se só existisse HBM. O Flash Attention usa a SRAM como cache explícito: divide as matrizes em <a href="#glossario-tiles">tiles</a> que cabem na SRAM, processa cada tile completamente e <strong>nunca escreve a matriz N×N na HBM</strong>.</p>
+
+<!-- ===== PAPER 1: FA1 ===== -->
+<div style="border-left: 3px solid #58a6ff; padding: 4px 16px; margin: 32px 0 16px; background: rgba(88,166,255,0.05); border-radius: 0 6px 6px 0;">
+  <h4 style="color:#58a6ff; margin:0;">📄 Paper 1: FlashAttention (Dao et al., NeurIPS 2022 — Best Paper)</h4>
+</div>
+
+<h4>Algoritmo 1 — Forward Pass Completo</h4>
+<p><strong>Tamanhos de bloco</strong> (derivados do tamanho M da SRAM): B<sub>c</sub> = ⌈M/(4d)⌉ para K,V; B<sub>r</sub> = min(⌈M/(4d)⌉, d) para Q,O.</p>
+
+<div class="code-block"><span class="lang-tag">Forward FA1 — Pseudocódigo extraído do paper (Algorithm 1)</span>
+<pre><code>Entrada: Q, K, V ∈ ℝ^(N×d) na HBM, blocos B_c, B_r
+
+1.  Divide Q em T_r = ⌈N/B_r⌉ blocos Q_1...Q_{T_r} de tamanho B_r×d
+2.  Divide K, V em T_c = ⌈N/B_c⌉ blocos K_1...K_{T_c}, V_1...V_{T_c}
+3.  Inicializa O = (0)_{N×d}, ℓ = (0)_N, m = (-∞)_N na HBM
+
+4.  para j = 1 até T_c:                     // outer loop: K,V blocks
+5.      carrega K_j, V_j da HBM → SRAM
+6.      para i = 1 até T_r:                 // inner loop: Q blocks
+7.          carrega Q_i, O_i, ℓ_i, m_i → SRAM
+8.
+9.          // Passo 1: scores de atenção
+10.         S_ij = τ · Q_i @ K_j^T           // [B_r × B_c] — PEQUENO!
+11.         S_ij = MASK(S_ij)                // causal/padding mask
+12.
+13.         // Passo 2: online softmax
+14.         m̃_ij = rowmax(S_ij)              // [B_r,]
+15.         P̃_ij = exp(S_ij - m̃_ij)           // [B_r × B_c] pointwise
+16.         ℓ̃_ij = rowsum(P̃_ij)              // [B_r,]
+17.
+18.         // Passo 3: atualiza estatísticas (CORREÇÃO CRÍTICA!)
+19.         m_novo = max(m_i, m̃_ij)
+20.         ℓ_novo = e^(m_i-m_novo)·ℓ_i + e^(m̃_ij-m_novo)·ℓ̃_ij
+21.
+22.         // Passo 4: dropout (se aplicável)
+23.         P̃_ij = dropout(P̃_ij, p_drop)
+24.
+25.         // Passo 5: acumula output com correção de escala
+26.         O_i = diag(ℓ_novo)⁻¹ · (diag(ℓ_i)·e^(m_i-m_novo)·O_i
+27.                                   + e^(m̃_ij-m_novo)·P̃_ij @ V_j)
+28.
+29.         escreve O_i, ℓ_i←ℓ_novo, m_i←m_novo → HBM
+30.     fim para
+31. fim para
+32. retorna O, ℓ, m, R</code></pre></div>
+
+<p><strong>O truque do online softmax:</strong> a correção <code>e^(m_velho - m_novo)</code> rescala todos os exponenciais acumulados para a base do novo máximo. Quando um bloco novo tem máximo maior que o anterior, os exponenciais antigos precisam ser "encolhidos". Sem isso: overflow se o novo máximo for maior, underflow se for menor. <a href="#glossario-online-softmax">Ver explicação completa no glossário →</a></p>
+
+<h4>Backward Pass — Recomputation</h4>
+<p>O backward <strong>não salva S e P</strong> (N×N cada). Recalcula cada bloco S_ij e P_ij na SRAM usando Q_i, K_j e as estatísticas armazenadas.</p>
+
+<table>
+  <tr><th>O que é armazenado (O(N))</th><th>O que NÃO é armazenado</th></tr>
+  <tr><td>O (output, N×d)</td><td>S = QK^T (N×N, ~134 MB p/ N=4096)</td></tr>
+  <tr><td>ℓ (soma exponenciais, N)</td><td>P = softmax(S) (N×N, ~134 MB)</td></tr>
+  <tr><td>m (máximo por linha, N)</td><td>Dropout mask (regenerada do seed)</td></tr>
+  <tr><td>R (seed do RNG, O(1))</td><td></td></tr>
+</table>
+
+<div class="code-block"><span class="lang-tag">Backward FA1 — Equações extraídas do paper</span>
+<pre><code>Dado gradiente de saída dO:
+
+1. Gradiente de V:  dV_j = Σ_i P_ij^T @ dO_i
+
+2. Estatística D_i (produto escalar por linha):
+   D_i = rowsum(dO_i ∘ O_i)                  // evita reduzir sobre N inteiro!
+
+3. Gradiente via Jacobiano do softmax:
+   dS_ij = P_ij ∘ (dP_ij - D_i)             // ∘ = pointwise multiply
+
+4. Gradientes de Q e K:
+   dQ_i += τ · dS_ij @ K_j
+   dK_j += τ · dS_ij^T @ Q_i</code></pre></div>
+
+<h4>Complexidade de IO</h4>
+<table>
+  <tr><th>Métrica</th><th>Atenção Padrão</th><th>Flash Attention</th></tr>
+  <tr><td>Acessos HBM</td><td>Θ(Nd + N²)</td><td>Θ(N²d²/M)</td></tr>
+  <tr><td>Memória extra</td><td>O(N²)</td><td>O(N)</td></tr>
+  <tr><td colspan="3"><strong>Exemplo real: GPT-2 medium, N=1024, d=64, 16 cabeças, batch=64, A100</strong></td></tr>
+  <tr><td>GFLOPs</td><td>66.6</td><td>75.2 (+13%, recomputação)</td></tr>
+  <tr><td>HBM R/W (GB)</td><td>40.3</td><td>4.4 (<strong>-89%!</strong>)</td></tr>
+  <tr><td>Runtime (ms)</td><td>41.7</td><td>7.3 (<strong>5.7× mais rápido!</strong>)</td></tr>
+</table>
+<blockquote><strong>Prova de otimalidade (Proposition 3):</strong> Nenhum algoritmo de atenção exata pode ter menos de Ω(N²d²/M) acessos HBM. O Flash Attention atinge esse limite inferior — é assintoticamente ótimo.</blockquote>
+
+<!-- ===== PAPER 2: FA2 ===== -->
+<div style="border-left: 3px solid #3fb950; padding: 4px 16px; margin: 32px 0 16px; background: rgba(63,185,80,0.05); border-radius: 0 6px 6px 0;">
+  <h4 style="color:#3fb950; margin:0;">📄 Paper 2: FlashAttention-2 (Dao, 2023)</h4>
+</div>
+
+<h4>Por que o FA1 era ineficiente (25-40% do pico na A100)</h4>
+<ol>
+  <li><strong>Split-K no particionamento de warps:</strong> K e V divididos entre warps, Q compartilhado. Cada warp escrevia seu resultado parcial na shared memory → sincronização → soma. Essas leituras/escritas extras dominavam o tempo.</li>
+  <li><strong>FLOPs não-matmul excessivos:</strong> cada FLOP não-matmul é <strong>16× mais caro</strong> que matmul na A100 (312 TFLOPS matmul FP16 vs 19.5 TFLOPS não-matmul FP32).</li>
+  <li><strong>Baixa ocupação com sequências longas:</strong> paralelizava só sobre batch×heads, não sobre sequence length. Com seqlen grande → batch pequeno → GPUs subutilizadas.</li>
+</ol>
+
+<h4>Três melhorias do FA2</h4>
+
+<p><strong>1. Redução de FLOPs não-matmul:</strong></p>
+<ul>
+  <li><strong>Tweak A:</strong> output mantido "não-escalado" até o final do loop. Só normaliza uma vez no fim: O = diag(ℓ)^{-1} · Õ. Elimina uma multiplicação por diag por iteração.</li>
+  <li><strong>Tweak B:</strong> em vez de salvar m e ℓ separados, salva L = m + log(ℓ) (logsumexp). Backward usa L diretamente.</li>
+</ul>
+
+<div class="code-block"><span class="lang-tag">Forward FA2 — Pseudocódigo extraído do paper (Algorithm 1)</span>
+<pre><code>Entrada: Q, K, V ∈ ℝ^(N×d) na HBM, blocos B_c, B_r
+Saída: O, L (logsumexp)
+
+1.  Divide Q em T_r blocos, K,V em T_c blocos
+2.  Divide O em T_r blocos, L em T_r blocos
+
+3.  para i = 1 até T_r EM PARALELO:          // NOVO: paralelo sobre seqlen!
+4.      carrega Q_i → SRAM
+5.      O_i = (0), ℓ_i = (0), m_i = (-∞)
+6.
+7.      para j = 1 até T_c:
+8.          carrega K_j, V_j → SRAM
+9.          S_ij = Q_i @ K_j^T               // [B_r × B_c]
+10.
+11.         m_novo = max(m_i, rowmax(S_ij))
+12.         P̃_ij = exp(S_ij - m_novo)
+13.         ℓ_novo = e^(m_i - m_novo)·ℓ_i + rowsum(P̃_ij)
+14.
+15.         O_i = diag(e^(m_i - m_novo))⁻¹ @ O_i + P̃_ij @ V_j
+16.
+17.         m_i = m_novo, ℓ_i = ℓ_novo
+18.     fim para
+19.
+20.     O_i = diag(ℓ_i)⁻¹ @ O_i               // normaliza só no final!
+21.     L_i = m_i + log(ℓ_i)                  // logsumexp
+22.     escreve O_i, L_i → HBM
+23. fim para</code></pre></div>
+
+<p><strong>2. Paralelismo sobre sequence length:</strong> Forward paraleliza sobre blocos de linha (Q), backward paraleliza sobre blocos de coluna (K,V). Atualização de dQ usa atomic adds. Aumenta ocupação com batch pequeno.</p>
+
+<p><strong>3. Novo particionamento entre warps (evita split-K):</strong></p>
+<table>
+  <tr><th></th><th>FA1 (split-K)</th><th>FA2</th></tr>
+  <tr><td>Q</td><td>Compartilhado entre warps</td><td><strong>Dividido</strong> entre warps</td></tr>
+  <tr><td>K, V</td><td>Divididos entre warps</td><td><strong>Compartilhado</strong> entre warps</td></tr>
+  <tr><td>Sincronização</td><td>Warps escrevem → sync → somam</td><td><strong>Sem comunicação</strong></td></tr>
+</table>
+<p>Cada warp produz sua fatia do output direto, sem precisar sincronizar com outros warps. Elimina leituras/escritas extras na shared memory.</p>
+
+<p><strong>Resultados (A100 80GB SXM4):</strong></p>
+<table>
+  <tr><th>Head dim</th><th>Com causal</th><th>Forward (TFLOPs/s)</th><th>Backward (TFLOPs/s)</th></tr>
+  <tr><td>64</td><td>Não</td><td>~230 (73% pico)</td><td>~195 (63% pico)</td></tr>
+  <tr><td>128</td><td>Não</td><td>~210 (67% pico)</td><td>~180</td></tr>
+  <tr><td>64</td><td>Sim</td><td>~200 (1.7-1.8× ganho)</td><td>~165</td></tr>
+</table>
+
+<p><strong>Treino end-to-end (8× A100):</strong></p>
+<table>
+  <tr><th>Modelo</th><th>Sem FA</th><th>FA1</th><th>FA2</th></tr>
+  <tr><td>GPT-2 1.3B, 2K ctx</td><td>142 TF</td><td>189 TF</td><td>196 TF</td></tr>
+  <tr><td>GPT-2 1.3B, 8K ctx</td><td>72 TF</td><td>170 TF</td><td><strong>220 TF</strong></td></tr>
+  <tr><td>GPT-2 2.7B, 2K ctx</td><td>149 TF</td><td>189 TF</td><td>205 TF</td></tr>
+  <tr><td>GPT-2 2.7B, 8K ctx</td><td>80 TF</td><td>175 TF</td><td><strong>225 TF (72% pico)</strong></td></tr>
+</table>
+<blockquote>Na H100 sem instruções especiais: ~335 TFLOPs/s. O paper já previa 1.5-2× adicional com TMA e FP8 — exatamente o que o FA3 entregou.</blockquote>
+
+<!-- ===== PAPER 3: FA3 ===== -->
+<div style="border-left: 3px solid #d2a8ff; padding: 4px 16px; margin: 32px 0 16px; background: rgba(210,168,255,0.05); border-radius: 0 6px 6px 0;">
+  <h4 style="color:#d2a8ff; margin:0;">📄 Paper 3: FlashAttention-3 (Dao et al., 2024) — ⚡ Este é o paper para implementar hoje</h4>
+</div>
+
+<h4>Por que FA2 atingia só 35% na H100</h4>
+<ol>
+  <li><strong>mma.sync bloqueante:</strong> instrução da Ampere que bloqueia a warp. Na H100, só atinge ~2/3 do throughput máximo dos Tensor Cores.</li>
+  <li><strong>Sem TMA:</strong> transferências HBM↔SRAM eram manuais (load/store), consumindo registradores e sem sobreposição com computação.</li>
+  <li><strong>Sem FP8:</strong> throughput FP8 é 2× FP16 (1978 vs 989 TFLOPS na H100 SXM5).</li>
+  <li><strong>Gargalo da exponencial:</strong> unidade de funções especiais tem apenas <strong>3.9 TFLOPS</strong> na H100 — 256× menos que matmul FP16. Para head dim 128, exp pode consumir <strong>50% do tempo</strong>. Com FP8 seria pior ainda (matmul dobra, exp constante).</li>
+</ol>
+
+<h4>Três inovações do FA3</h4>
+
+<p><strong>A. WGMMA (Warp Group MMA) + Warp Specialization:</strong></p>
+<ul>
+  <li><strong>WGMMA:</strong> instrução assíncrona exclusiva da Hopper. Substitui mma.sync. O warp group (4 warps) dispara a multiplicação e <strong>continua executando</strong> enquanto ela roda nos Tensor Cores.</li>
+  <li><strong>Inter-Warpgroup Pingpong:</strong> dois warpgroups (A: GEMMs, B: softmax) alternam via bar.sync. A softmax roda "na sombra" dos GEMMs do outro warpgroup.</li>
+  <li><strong>Intra-Warpgroup Pipelining:</strong> pipeline de 2 estágios com acumuladores separados. Partes do softmax executam enquanto os GEMMs estão em voo. Tradeoff: maior pressão de registradores.</li>
+</ul>
+
+<p><strong>B. TMA (Tensor Memory Accelerator):</strong> Hardware dedicado para transferências HBM↔SRAM. Cuida de cálculo de índices e predicação de bounds. Libera registradores. Assíncrono — sobrepõe carga de dados com computação.</p>
+
+<p><strong>C. FP8 com Incoherent Processing:</strong></p>
+<ul>
+  <li>Multiplica Q e K por matriz de Hadamard aleatória — "espalha" outliers para que a energia fique uniforme</li>
+  <li>Custo: O(d log d) por cabeça, fundido com rotary embeddings (praticamente grátis)</li>
+  <li>Erro de quantização <strong>2.6× menor</strong> que FP8 baseline</li>
+  <li>Forward inteiro em FP8 (~2× throughput); backward em BF16 para estabilidade</li>
+</ul>
+
+<h4>Resultados FA3 (H100 SXM5, head dim 128, seqlen 8K)</h4>
+<table>
+  <tr><th>Configuração</th><th>TFLOPs/s</th><th>% Pico</th></tr>
+  <tr><td>FA2 baseline</td><td>~350</td><td>35%</td></tr>
+  <tr><td>FA3 FP16</td><td><strong>740</strong></td><td><strong>75%</strong></td></tr>
+  <tr><td>FA3 FP8</td><td><strong>~1,200</strong> (1.2 PFLOPs/s!)</td><td>61% do pico FP8</td></tr>
+</table>
+<p><strong>Speedup vs FA2:</strong> 1.5-2.0× em FP16. FA4 já existe em beta, reescrito em CuTeDSL para Hopper e Blackwell (B200).</p>
+
+<!-- ===== COMPARATIVO FINAL ===== -->
+<h4>Comparativo Final — As 3 Versões</h4>
+<table>
+  <tr><th>Característica</th><th>FA1 (2022)</th><th>FA2 (2023)</th><th>FA3 (2024)</th></tr>
+  <tr><td>Hardware alvo</td><td>A100</td><td>A100</td><td><strong>H100/B200</strong></td></tr>
+  <tr><td>Throughput</td><td>25-40% pico</td><td>50-73% pico</td><td><strong>75% pico (FP16)</strong></td></tr>
+  <tr><td>Instrução matmul</td><td>mma.sync</td><td>mma.sync</td><td><strong>wgmma</strong> (assíncrono)</td></tr>
+  <tr><td>Warp partitioning</td><td>split-K</td><td>Q dividido, K,V comp.</td><td><strong>Warpgroups + pingpong</strong></td></tr>
+  <tr><td>Paralelismo</td><td>batch×heads</td><td>batch×heads×<strong>seqlen</strong></td><td>batch×heads×seqlen</td></tr>
+  <tr><td>Precisão</td><td>FP16/BF16</td><td>FP16/BF16</td><td>FP16/BF16 + <strong>FP8</strong></td></tr>
+  <tr><td>TMA</td><td>❌</td><td>❌</td><td><strong>✅</strong></td></tr>
+  <tr><td>Memória extra</td><td>O(N)</td><td>O(N)</td><td>O(N)</td></tr>
+  <tr><td>Output scaling</td><td>Rescala por iteração</td><td>Só no final</td><td>Só no final</td></tr>
+</table>
+
+<h4>Pré-requisitos</h4>
+<ul>
+  <li>Estrutura do Transformer (atenção multi-cabeça, Q/K/V)</li>
+  <li>Hierarquia de memória da GPU (<a href="#glossario-hbm">HBM vs SRAM</a>)</li>
+  <li>Modelo de execução CUDA (threads, <a href="#glossario-warp">warps</a>, thread blocks, grid)</li>
+  <li><a href="#glossario-online-softmax">Online softmax</a> e estabilidade numérica</li>
+  <li>Operações de álgebra linear (GEMM, matmul)</li>
+  <li>Regra da cadeia e backpropagation (para entender o backward)</li>
+</ul>
+
+<h4>Conexões</h4>
+<ul>
+  <li><strong>Multi-Query / Grouped Query Attention:</strong> reduzem cabeças de K,V — FA2 suporta nativamente. Essencial para inferência (reduz KV cache)</li>
+  <li><strong>FSDP:</strong> divide parâmetros entre GPUs; combinado com FA permite modelos maiores com contexto maior</li>
+  <li><strong>LoRA:</strong> FA acelera forward/backward do modelo base; LoRA reduz parâmetros treináveis</li>
+  <li><strong>Quantização (INT8/FP8):</strong> FA3 incorpora FP8 no forward via incoherent processing</li>
+  <li><strong><a href="#glossario-sparse">Sparse Attention</a>:</strong> FA1 tem versão block-sparse. Na prática, FA exato é mais usado</li>
+  <li><strong>Flash Decoding:</strong> extensão para inferência — paraleliza sobre sequence length do KV cache</li>
+</ul>
+
+<h4>Papers Fundamentais</h4>
+<ul>
+  <li><a href="https://arxiv.org/abs/2205.14135" target="_blank"><strong>FlashAttention (2022)</strong></a> — Dao, Fu, Ermon, Rudra, Ré. NeurIPS 2022 Best Paper. Tiling + recomputation.</li>
+  <li><a href="https://arxiv.org/abs/2307.08691" target="_blank"><strong>FlashAttention-2 (2023)</strong></a> — Tri Dao. Warp partitioning, paralelismo sobre seqlen, logsumexp.</li>
+  <li><a href="https://arxiv.org/abs/2407.08608" target="_blank"><strong>FlashAttention-3 (2024)</strong></a> — Dao et al. WGMMA, TMA, FP8 com incoherent processing.</li>
+  <li><a href="https://arxiv.org/abs/2112.05682" target="_blank">Self-Attention Does Not Need O(n²) Memory (2021)</a> — Rabe & Staats. Precursor teórico.</li>
+</ul>
+
+<h4>Perguntas de Revisão</h4>
+<ol>
+  <li>Calcule exatamente quantos bytes a atenção padrão lê/escreve da HBM para N=4096, d=128, FP16. Compare com Flash Attention (use B<sub>c</sub>=B<sub>r</sub>=128, M=192KB).</li>
+  <li>Por que <code>e^(m_velho - m_novo)</code> é necessário no online softmax? O que acontece sem ele?</li>
+  <li>Explique por que recalcular S e P no backward é mais rápido que salvá-los. Use latência: ~300 ciclos HBM vs ~25 ciclos SRAM.</li>
+  <li>Qual a diferença entre split-K (FA1) e o particionamento do FA2? Por que evitar split-K reduz latência?</li>
+  <li>Por que a exponencial é o gargalo no FA3 com FP8? (Dica: 989 TFLOPS matmul FP16 vs 3.9 TFLOPS exp na H100)</li>
+  <li>Como o incoherent processing (Hadamard transform) permite FP8 com baixo erro no FA3?</li>
+  <li>Você tem uma H100 e quer treinar com N=32768, d=128. Qual versão do FA usar e por quê?</li>
+</ol>
+
+<h4>Recursos Adicionais</h4>
+<ul>
+  <li><a href="https://github.com/Dao-AILab/flash-attention" target="_blank">Código oficial</a> — <code>flash_attn/csrc/flash_attn_3/</code></li>
+  <li><a href="https://tridao.me/blog/2024/flash3/" target="_blank">Blog post FA3 — Tri Dao</a></li>
+  <li><a href="https://github.com/NVIDIA/cutlass" target="_blank">CUTLASS 3.x (NVIDIA)</a> — biblioteca usada pelo FA2/FA3</li>
+  <li><a href="https://docs.nvidia.com/cuda/hopper-tuning-guide/" target="_blank">Guia CUDA Hopper</a></li>
+</ul>
+
+        </div>
+      </div>
+    </article>
+
+    <!-- Multi-Query Attention -->
+    <article class="topic" id="multi-query">
+      <div class="topic-marker"></div>
+      <div class="topic-card">
+        <div class="topic-header">
+          <h3>Multi-Query Attention</h3>
+          <span class="topic-badge pending">🔴 Não estudado</span>
+        </div>
+        <div class="topic-placeholder">
+          <div class="icon">📚</div>
+          <p>Conteúdo ainda não estudado. Siga a trilha de estudos para chegar aqui.</p>
+          <p style="font-size:12px;margin-top:8px">Pré-requisito: Flash Attention</p>
+        </div>
+      </div>
+    </article>
+
+    <!-- Grouped Query Attention -->
+    <article class="topic" id="grouped-query">
+      <div class="topic-marker"></div>
+      <div class="topic-card">
+        <div class="topic-header">
+          <h3>Grouped Query Attention</h3>
+          <span class="topic-badge pending">🔴 Não estudado</span>
+        </div>
+        <div class="topic-placeholder">
+          <div class="icon">📚</div>
+          <p>Conteúdo ainda não estudado.</p>
+        </div>
+      </div>
+    </article>
+
+    <!-- ==================== PARALELISMO ==================== -->
+    <div class="section-divider" id="sec-paralelismo"><h2>Técnicas de Paralelismo</h2></div>
+
+    <article class="topic" id="ddp">
+      <div class="topic-marker"></div>
+      <div class="topic-card">
+        <div class="topic-header"><h3>Data Parallel (DDP)</h3><span class="topic-badge pending">🔴 Não estudado</span></div>
+        <div class="topic-placeholder"><div class="icon">📚</div><p>Conteúdo ainda não estudado.</p></div>
+      </div>
+    </article>
+
+    <article class="topic" id="fsdp">
+      <div class="topic-marker"></div>
+      <div class="topic-card">
+        <div class="topic-header"><h3>Fully Sharded Data Parallel (FSDP)</h3><span class="topic-badge pending">🔴 Não estudado</span></div>
+        <div class="topic-placeholder"><div class="icon">📚</div><p>Conteúdo ainda não estudado.</p></div>
+      </div>
+    </article>
+
+    <article class="topic" id="pipeline">
+      <div class="topic-marker"></div>
+      <div class="topic-card">
+        <div class="topic-header"><h3>Pipeline Parallelism</h3><span class="topic-badge pending">🔴 Não estudado</span></div>
+        <div class="topic-placeholder"><div class="icon">📚</div><p>Conteúdo ainda não estudado.</p></div>
+      </div>
+    </article>
+
+    <article class="topic" id="tensor">
+      <div class="topic-marker"></div>
+      <div class="topic-card">
+        <div class="topic-header"><h3>Tensor Parallelism</h3><span class="topic-badge pending">🔴 Não estudado</span></div>
+        <div class="topic-placeholder"><div class="icon">📚</div><p>Conteúdo ainda não estudado.</p></div>
+      </div>
+    </article>
+
+    <!-- ==================== FINE-TUNING EFICIENTE ==================== -->
+    <div class="section-divider" id="sec-finetuning"><h2>Técnicas de Fine-tuning Eficiente</h2></div>
+
+    <article class="topic" id="lora">
+      <div class="topic-marker"></div>
+      <div class="topic-card">
+        <div class="topic-header"><h3>LoRA — Low-Rank Adaptation</h3><span class="topic-badge pending">🔴 Não estudado</span></div>
+        <div class="topic-placeholder"><div class="icon">📚</div><p>Conteúdo ainda não estudado.</p></div>
+      </div>
+    </article>
+
+    <article class="topic" id="qlora">
+      <div class="topic-marker"></div>
+      <div class="topic-card">
+        <div class="topic-header"><h3>QLoRA</h3><span class="topic-badge pending">🔴 Não estudado</span></div>
+        <div class="topic-placeholder"><div class="icon">📚</div><p>Conteúdo ainda não estudado.</p></div>
+      </div>
+    </article>
+
+    <article class="topic" id="prefix-tuning">
+      <div class="topic-marker"></div>
+      <div class="topic-card">
+        <div class="topic-header"><h3>Prefix Tuning</h3><span class="topic-badge pending">🔴 Não estudado</span></div>
+        <div class="topic-placeholder"><div class="icon">📚</div><p>Conteúdo ainda não estudado.</p></div>
+      </div>
+    </article>
+
+    <!-- ==================== QUANTIZAÇÃO ==================== -->
+    <div class="section-divider" id="sec-quantizacao"><h2>Quantização</h2></div>
+
+    <article class="topic" id="int8">
+      <div class="topic-marker"></div>
+      <div class="topic-card">
+        <div class="topic-header"><h3>Quantização INT8</h3><span class="topic-badge pending">🔴 Não estudado</span></div>
+        <div class="topic-placeholder"><div class="icon">📚</div><p>Conteúdo ainda não estudado.</p></div>
+      </div>
+    </article>
+
+    <article class="topic" id="int4">
+      <div class="topic-marker"></div>
+      <div class="topic-card">
+        <div class="topic-header"><h3>Quantização INT4</h3><span class="topic-badge pending">🔴 Não estudado</span></div>
+        <div class="topic-placeholder"><div class="icon">📚</div><p>Conteúdo ainda não estudado.</p></div>
+      </div>
+    </article>
+
+    <article class="topic" id="gptq">
+      <div class="topic-marker"></div>
+      <div class="topic-card">
+        <div class="topic-header"><h3>GPTQ</h3><span class="topic-badge pending">🔴 Não estudado</span></div>
+        <div class="topic-placeholder"><div class="icon">📚</div><p>Conteúdo ainda não estudado.</p></div>
+      </div>
+    </article>
+
+    <article class="topic" id="awq">
+      <div class="topic-marker"></div>
+      <div class="topic-card">
+        <div class="topic-header"><h3>AWQ</h3><span class="topic-badge pending">🔴 Não estudado</span></div>
+        <div class="topic-placeholder"><div class="icon">📚</div><p>Conteúdo ainda não estudado.</p></div>
+      </div>
+    </article>
+
+    <!-- ==================== ARQUITETURAS MODERNAS ==================== -->
+    <div class="section-divider" id="sec-arquiteturas"><h2>Arquiteturas Modernas</h2></div>
+
+    <article class="topic" id="moe">
+      <div class="topic-marker"></div>
+      <div class="topic-card">
+        <div class="topic-header"><h3>Mixture of Experts (MoE)</h3><span class="topic-badge pending">🔴 Não estudado</span></div>
+        <div class="topic-placeholder"><div class="icon">📚</div><p>Conteúdo ainda não estudado.</p></div>
+      </div>
+    </article>
+
+    <article class="topic" id="mamba">
+      <div class="topic-marker"></div>
+      <div class="topic-card">
+        <div class="topic-header"><h3>State Space Models (Mamba)</h3><span class="topic-badge pending">🔴 Não estudado</span></div>
+        <div class="topic-placeholder"><div class="icon">📚</div><p>Conteúdo ainda não estudado.</p></div>
+      </div>
+    </article>
+
+    <article class="topic" id="sparse">
+      <div class="topic-marker"></div>
+      <div class="topic-card">
+        <div class="topic-header"><h3>Sparse Attention</h3><span class="topic-badge pending">🔴 Não estudado</span></div>
+        <div class="topic-placeholder"><div class="icon">📚</div><p>Conteúdo ainda não estudado.</p></div>
+      </div>
+    </article>
+
+    <!-- ==================== PAPERS IMPORTANTES ==================== -->
+    <div class="section-divider" id="sec-papers"><h2>Papers Importantes</h2></div>
+
+    <article class="topic" id="paper-attention">
+      <div class="topic-marker"></div>
+      <div class="topic-card">
+        <div class="topic-header"><h3>Attention Is All You Need (2017)</h3><span class="topic-badge pending">🔴 Não estudado</span></div>
+        <div class="topic-placeholder"><div class="icon">📄</div><p>Paper ainda não estudado em detalhe.</p></div>
+      </div>
+    </article>
+
+    <article class="topic" id="paper-flash">
+      <div class="topic-marker done"></div>
+      <div class="topic-card">
+        <div class="topic-header">
+          <h3>Flash Attention (2022) — NeurIPS Best Paper</h3>
+          <span class="topic-badge done">🟢 Estudado</span>
+        </div>
+        <div class="topic-body">
+          <p>Paper que introduziu o algoritmo de atenção IO-aware com tiling e recomputação. O conteúdo completo está documentado no tópico <a href="#flash-attention">Flash Attention</a> acima.</p>
+        </div>
+      </div>
+    </article>
+
+    <article class="topic" id="paper-lora">
+      <div class="topic-marker"></div>
+      <div class="topic-card">
+        <div class="topic-header"><h3>LoRA — Low-Rank Adaptation (2021)</h3><span class="topic-badge pending">🔴 Não estudado</span></div>
+        <div class="topic-placeholder"><div class="icon">📄</div><p>Paper ainda não estudado em detalhe.</p></div>
+      </div>
+    </article>
+
+    <article class="topic" id="paper-deepseek">
+      <div class="topic-marker"></div>
+      <div class="topic-card">
+        <div class="topic-header"><h3>DeepSeek V4 (2026)</h3><span class="topic-badge pending">🔴 Não estudado</span></div>
+        <div class="topic-placeholder"><div class="icon">📄</div><p>Paper ainda não estudado em detalhe.</p></div>
+      </div>
+    </article>
+
+    <!-- ==================== GLOSSÁRIO ==================== -->
+    <div class="section-divider" id="sec-glossario"><h2>📖 Glossário de Termos Técnicos</h2></div>
+
+    <article class="topic" id="glossario">
+      <div class="topic-marker done"></div>
+      <div class="topic-card">
+        <div class="topic-header">
+          <h3>Glossário — Consulte os termos enquanto estuda</h3>
+          <span class="topic-badge done">🟢 Em construção</span>
+        </div>
+        <div class="topic-body">
+
+<!-- ===== HBM vs SRAM ===== -->
+<h4 id="glossario-hbm">🏭 HBM vs SRAM — Hierarquia de Memória da GPU</h4>
+<p><strong>HBM (High Bandwidth Memory):</strong> memória principal da GPU (VRAM). Grande (40-80 GB) mas lenta (latência de centenas de ciclos). Todas as matrizes do modelo ficam aqui. <strong>Analogia:</strong> um galpão do outro lado da rua — cabe tudo, mas cada viagem é demorada.</p>
+<p><strong>SRAM (Static RAM / Shared Memory):</strong> memória dentro de cada Streaming Multiprocessor. Pequena (~228 KB por SM na H100) mas muito rápida (~25 ciclos de latência). <strong>Analogia:</strong> sua mesa de trabalho — cabe pouco, mas tudo ao alcance da mão.</p>
+<p><strong>Por que importa no Flash Attention:</strong> TODO o algoritmo gira em torno de nunca escrever a matriz N×N na HBM. Em vez disso, processa blocos pequenos na SRAM. Cada acesso evitado à HBM é ganho direto de velocidade.</p>
+<table>
+  <tr><th>Memória</th><th>Capacidade (H100)</th><th>Banda</th><th>Latência</th></tr>
+  <tr><td>HBM (VRAM)</td><td>80 GB</td><td>3.35 TB/s</td><td>~300 ciclos</td></tr>
+  <tr><td>L2 Cache</td><td>50 MB</td><td>~12 TB/s</td><td>~100 ciclos</td></tr>
+  <tr><td>SRAM (Shared Mem)</td><td>228 KB / SM</td><td>~20+ TB/s</td><td>~25 ciclos</td></tr>
+  <tr><td>Registradores</td><td>~64K / SM</td><td>Máxima</td><td>~1 ciclo</td></tr>
+</table>
+<a href="#flash-attention">⬆ Voltar ao Flash Attention</a>
+
+<!-- ===== Sparse Attention ===== -->
+<h4 id="glossario-sparse">🧩 Sparse Attention</h4>
+<p>Família de técnicas que calcula apenas um <strong>subconjunto</strong> das conexões entre tokens, em vez de todas as N×N conexões. É como ler um livro e só consultar palavras do mesmo parágrafo, em vez de comparar cada palavra com todas as outras.</p>
+<p><strong>Flash Attention NÃO é sparse attention</strong> — ele calcula a atenção exata (todas as conexões). Mas antes de 2022, sparse attention era a principal estratégia para reduzir o custo O(N²) da atenção.</p>
+<table>
+  <tr><th>Técnica</th><th>Estratégia</th><th>Qualidade</th></tr>
+  <tr><td>Sparse Transformer (2019)</td><td>Padrão fixo: local + strided</td><td>Perde conexões distantes</td></tr>
+  <tr><td>Longformer (2020)</td><td>Janela deslizante + tokens globais</td><td>Boa para NLP longo</td></tr>
+  <tr><td>BigBird (2020)</td><td>Aleatório + local + global</td><td>Melhor que sparse fixo</td></tr>
+  <tr><td><strong>Flash Attention (2022)</strong></td><td><strong>Exata, sem esparsidade</strong></td><td><strong>Sem perda de qualidade</strong></td></tr>
+</table>
+<a href="#flash-attention">⬆ Voltar ao Flash Attention</a>
+
+<!-- ===== Linformer ===== -->
+<h4 id="glossario-linformer">📐 Linformer</h4>
+<p>Uma das primeiras tentativas de reduzir o custo da atenção usando <strong>projeção de baixo rank</strong>. A ideia: a matriz de atenção N×N pode ser aproximada por duas matrizes menores N×k e k×N, onde k é pequeno (~256). Complexidade: O(N²) → O(N·k).</p>
+<p><strong>Limitação:</strong> não escala para sequências mais longas que as do treino. Se treinar com N=512 e inferir com N=4096, degrada.</p>
+<p><strong>Relação com Flash Attention:</strong> o Linformer mostrou que a matriz de atenção tem baixo rank (muita redundância). Mas é uma aproximação — o Flash Attention veio depois e mostrou que dava para ser exato e eficiente.</p>
+<a href="#flash-attention">⬆ Voltar ao Flash Attention</a>
+
+<!-- ===== Performer ===== -->
+<h4 id="glossario-performer">🎭 Performer</h4>
+<p>Usa um truque matemático chamado <strong>FAVOR+</strong> (Fast Attention Via Orthogonal Random features) para aproximar o softmax com kernels e projeções aleatórias. Complexidade <strong>linear O(N)</strong> — foi o primeiro mecanismo de atenção linear que funcionou bem.</p>
+<p><strong>Performer vs Flash Attention:</strong> atacam o mesmo problema de ângulos opostos. Performer muda a matemática (aproximação do softmax → O(N) computação). Flash Attention muda a engenharia (IO-awareness → O(N) memória, computação ainda O(N²)). Para qualidade crítica, FA venceu.</p>
+<a href="#flash-attention">⬆ Voltar ao Flash Attention</a>
+
+<!-- ===== Tiles ===== -->
+<h4 id="glossario-tiles">🧱 Tiles (Ladrilhamento)</h4>
+<p>Técnica onde uma matriz grande é dividida em <strong>blocos menores</strong> que cabem na memória rápida (SRAM). Cada bloco é carregado, processado completamente e descartado antes do próximo.</p>
+<p><strong>Analogia:</strong> pintar uma parede de 10m×10m — você pinta um quadrado de 1m×1m de cada vez. A parede inteira nunca está na sua mão, só o ladrilho atual.</p>
+<p>A matriz de atenção N×N é dividida em tiles de tamanho Br×Bc (ex: 128×128):</p>
+<div class="code-block"><span class="lang-tag">Matriz N×N dividida em tiles</span>
+<pre><code>┌─────────┬─────────┬─────────┐
+│ Tile    │ Tile    │ Tile    │
+│ [0,0]   │ [0,1]   │ [0,2]   │  ← 128×128 cada
+├─────────┼─────────┼─────────┤
+│ Tile    │ Tile    │ Tile    │
+│ [1,0]   │ [1,1]   │ [1,2]   │
+├─────────┼─────────┼─────────┤
+│ Tile    │ Tile    │ Tile    │
+│ [2,0]   │ [2,1]   │ [2,2]   │
+└─────────┴─────────┴─────────┘</code></pre></div>
+<p>Cada tile de 128×128 em float16 ocupa 32 KB — cabe na SRAM de 228 KB.</p>
+<a href="#flash-attention">⬆ Voltar ao Flash Attention</a>
+
+<!-- ===== Warp ===== -->
+<h4 id="glossario-warp">⚡ Warp e WGMMA (CUDA)</h4>
+<p><strong>Warp:</strong> grupo de <strong>32 threads</strong> que executam juntas a mesma instrução sobre dados diferentes (modelo SIMT). É a unidade fundamental de execução em GPUs NVIDIA. Uma H100 gerencia 64 warps simultaneamente por SM.</p>
+<p><strong>WGMMA (Warp Group Matrix Multiply-Accumulate):</strong> instrução exclusiva da arquitetura Hopper (H100) que permite que um grupo de warps dispare uma multiplicação de matrizes de forma <strong>assíncrona</strong> — o warp não espera o resultado, continua executando enquanto a multiplicação roda nos Tensor Cores.</p>
+<p><strong>Evolução entre versões do FA:</strong></p>
+<table>
+  <tr><th>Versão</th><th>Como usa warps</th><th>Eficiência</th></tr>
+  <tr><td>FA1</td><td>Cada warp processa uma linha inteira</td><td>Warps ociosos esperando</td></tr>
+  <tr><td>FA2</td><td>Cada warp processa um bloco 128×128</td><td>Menos comunicação entre warps</td></tr>
+  <tr><td><strong>FA3</strong></td><td><strong>Warps em estágios diferentes do pipeline (WGMMA)</strong></td><td><strong>Nenhum warp ocioso</strong></td></tr>
+</table>
+<a href="#flash-attention">⬆ Voltar ao Flash Attention</a>
+
+<!-- ===== Online Softmax ===== -->
+<h4 id="glossario-online-softmax">🔢 Online Softmax</h4>
+<p>Algoritmo que calcula o softmax <strong>incrementalmente</strong>, processando pedaços do vetor sem nunca ver todos os valores de uma vez. Mantém duas variáveis atualizadas bloco a bloco:</p>
+<ul>
+  <li><strong>m:</strong> máximo corrente (para estabilidade numérica)</li>
+  <li><strong>l:</strong> soma corrente dos exponenciais (para normalização)</li>
+</ul>
+<p>Quando um novo bloco chega, a correção <code>exp(m_velho - m_novo)</code> rescala todos os exponenciais antigos para a nova base. Sem isso, os números estouram (overflow) ou viram zero (underflow).</p>
+<div class="code-block"><span class="lang-tag">Exemplo numérico simples</span>
+<pre><code>Bloco 1: scores = [2, 1, 3]
+  m = 3, l = e^(2-3) + e^(1-3) + e^(3-3) = 1.503
+
+Bloco 2: scores = [5, 0, 4]  ← novo máximo 5 > 3!
+  m_novo = 5
+  l = 1.503 * e^(3-5) + e^(5-5) + e^(0-5) + e^(4-5)
+    = 1.503 * 0.135 + 1 + 0.007 + 0.368
+    = 1.578</code></pre></div>
+<p>O fator <code>e^(3-5) = 0.135</code> "encolheu" os exponenciais do bloco 1 para a base correta.</p>
+<p><strong>Por que importa:</strong> é o que viabiliza o tiling no cálculo da atenção. Sem o online softmax, você precisaria da matriz N×N inteira — exatamente o que o Flash Attention evita.</p>
+<a href="#flash-attention">⬆ Voltar ao Flash Attention</a>
+
+        </div>
+      </div>
+    </article>
+
+  </section>
+</main>
+
+<script>
+// Scroll spy
+const topics = document.querySelectorAll('.topic');
+const navLinks = document.querySelectorAll('.sidebar-nav a');
+const progressFill = document.getElementById('progressFill');
+
+function updateActiveLink() {
+  let current = '';
+  topics.forEach(topic => {
+    const rect = topic.getBoundingClientRect();
+    if (rect.top <= 200) {
+      current = topic.getAttribute('id');
+      topic.classList.add('visible');
+    }
+  });
+
+  navLinks.forEach(link => {
+    link.classList.remove('active');
+    if (link.getAttribute('href') === '#' + current) {
+      link.classList.add('active');
+    }
+  });
+
+  const scrollTop = document.documentElement.scrollTop || document.body.scrollTop;
+  const scrollHeight = document.documentElement.scrollHeight - document.documentElement.clientHeight;
+  const progress = scrollHeight > 0 ? (scrollTop / scrollHeight) * 100 : 0;
+  progressFill.style.width = Math.min(progress, 100) + '%';
+}
+
+window.addEventListener('scroll', updateActiveLink, { passive: true });
+
+// Smooth scroll
+document.querySelectorAll('.sidebar-nav a').forEach(link => {
+  link.addEventListener('click', function(e) {
+    e.preventDefault();
+    const target = document.querySelector(this.getAttribute('href'));
+    if (target) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  });
+});
+
+// Mobile sidebar toggle
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('open');
+}
+function closeSidebar() {
+  document.getElementById('sidebar').classList.remove('open');
+}
+
+updateActiveLink();
+</script>
+
+</body>
+</html>

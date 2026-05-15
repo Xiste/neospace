@@ -1,0 +1,15 @@
+# Plan files - temporários
+.claude/plans/
+*.plan.md
+
+# Dependências
+node_modules/
+
+# IDE
+.vscode/
+.idea/
+
+# Sistema
+Thumbs.db
+.DS_Store
+Desktop.ini
