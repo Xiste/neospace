@@ -308,6 +308,7 @@ MathJax = {
       <li><a href="#ffn-residual" onclick="closeSidebar()"><span class="status-dot done"></span>FFN + Residual + LayerNorm</a></li>
       <li><a href="#transformer-completo" onclick="closeSidebar()"><span class="status-dot done"></span>Transformer Completo</a></li>
         <li><a href="#pipeline-completa" onclick="closeSidebar()"><span class="status-dot done"></span>Pipeline Completa (Exemplo)</a></li>
+        <li><a href="#transformer-pytorch" onclick="closeSidebar()"><span class="status-dot done"></span>Transformer em PyTorch</a></li>
     </ul>
 
     <div class="sidebar-section"><h2>Eficiência de Atenção</h2></div>
@@ -368,8 +369,8 @@ MathJax = {
     <p>Uma jornada progressiva pelas técnicas que transformaram o treinamento de modelos de linguagem — desde os fundamentos matemáticos até as arquiteturas que rodam em milhares de GPUs. Abordagem linear: um conceito por vez, do básico ao avançado.</p>
     <div class="hero-stats">
       <div class="hero-stat"><div class="num">25</div><div class="label">Tópicos na trilha</div></div>
-      <div class="hero-stat"><div class="num">12</div><div class="label">Dominados</div></div>
-      <div class="hero-stat"><div class="num">48%</div><div class="label">Progresso</div></div>
+      <div class="hero-stat"><div class="num">13</div><div class="label">Dominados</div></div>
+      <div class="hero-stat"><div class="num">52%</div><div class="label">Progresso</div></div>
       <div class="hero-stat"><div class="num" id="quizGlobalPct">0%</div><div class="label">Quiz Respondido</div></div>
     </div>
   </section>
@@ -1786,6 +1787,77 @@ Softmax → "&lt;/s&gt;" (0.38) — token de fim. Geracao concluida.</code></pre
   <li><strong>KV-cache:</strong> na prática, K e V do decoder são armazenados para não recalcular a cada iteração — essencial para inferência rápida</li>
   <li><strong><a href="#glossario-temperatura">Temperatura</a>:</strong> controla a criatividade na escolha do próximo token (T=1 → softmax padrão; T<1 → mais determinístico)</li>
 </ul>
+        </div>
+      </div>
+    </article>
+
+    <!-- Transformer PyTorch -->
+    <article class="topic" id="transformer-pytorch">
+      <div class="topic-marker done"></div>
+      <div class="topic-card">
+        <div class="topic-header">
+          <h3>10. Transformer do Zero em PyTorch</h3>
+          <span class="topic-badge done">🟢 Dominado</span>
+        </div>
+        <div class="topic-body">
+<h4>Sobre Este Guia</h4>
+<p>Implementação COMPLETA do Transformer em PyTorch, linha por linha, assumindo <strong>zero conhecimento de PyTorch</strong>. Cada função (<code>nn.Linear</code>, <code>.transpose()</code>, <code>.view()</code>, <code>torch.matmul</code>) é explicada na primeira vez que aparece.</p>
+
+<h4>Estrutura do Código</h4>
+<div class="code-block"><span class="lang-tag">Hierarquia de classes do Transformer</span>
+<pre><code>Transformer (~65M parametros)
+├── Encoder (6 camadas)
+│   ├── Embeddings (|V| x 512, lookup)
+│   ├── PositionalEncoding (senos/cossenos)
+│   └── EncoderLayer x 6
+│       ├── MultiHeadAttention (8 cabecas, Q=K=V=encoder)
+│       └── FeedForward (512→2048→512 + ReLU)
+│
+├── Decoder (6 camadas)
+│   ├── Embeddings (compartilhada com encoder)
+│   └── DecoderLayer x 6
+│       ├── Masked MultiHeadAttention (Q=K=V=decoder)
+│       ├── Cross MultiHeadAttention (Q=dec, K,V=enc)
+│       └── FeedForward
+│
+└── Projecao Final (Linear 512→|V|, pesos compartilhados)</code></pre></div>
+
+<h4>O Que Você Vai Aprender de PyTorch</h4>
+<table>
+  <tr><th>Conceito</th><th>Função</th><th>O que faz</th></tr>
+  <tr><td><strong>nn.Module</strong></td><td><code>class MeuModelo(nn.Module)</code></td><td>Bloco base de toda rede neural. __init__ define camadas, forward define fluxo</td></tr>
+  <tr><td><strong>nn.Linear</strong></td><td><code>nn.Linear(512, 2048)</code></td><td>Camada totalmente conectada: y = xW + b. Cria pesos aprendíveis</td></tr>
+  <tr><td><strong>nn.Embedding</strong></td><td><code>nn.Embedding(37K, 512)</code></td><td>Tabela de lookup: ID inteiro → vetor denso</td></tr>
+  <tr><td><strong>nn.LayerNorm</strong></td><td><code>nn.LayerNorm(512)</code></td><td>Normaliza por token: (x-μ)/σ * γ + β</td></tr>
+  <tr><td><strong>nn.Dropout</strong></td><td><code>nn.Dropout(0.1)</code></td><td>Zera 10% dos neurônios no treino. Não faz nada na inferência</td></tr>
+  <tr><td><strong>F.softmax</strong></td><td><code>F.softmax(x, dim=-1)</code></td><td>Converte scores em probabilidades. dim=-1 = normaliza última dimensão</td></tr>
+  <tr><td><strong>F.relu</strong></td><td><code>F.relu(x)</code></td><td>max(0, x). Zera negativos. Torna a rede não-linear</td></tr>
+  <tr><td><strong>.view()</strong></td><td><code>x.view(batch, -1, 8, 64)</code></td><td>Reorganiza dimensões sem copiar dados. -1 = calcula automático</td></tr>
+  <tr><td><strong>.transpose()</strong></td><td><code>x.transpose(1, 2)</code></td><td>Troca duas dimensões. Ex: (batch, seq, heads, d_k) → (batch, heads, seq, d_k)</td></tr>
+  <tr><td><strong>torch.matmul</strong></td><td><code>torch.matmul(Q, K.transpose(-2,-1))</code></td><td>Multiplicação de matrizes (batch). Q·K^T na atenção</td></tr>
+  <tr><td><strong>torch.tril</strong></td><td><code>torch.tril(torch.ones(3,3))</code></td><td>Triangular inferior. Cria máscara "só passado" para o decoder</td></tr>
+</table>
+
+<h4>Destaques do Código</h4>
+<p><strong>Weight tying (compartilhamento de pesos):</strong></p>
+<div class="code-block"><span class="lang-tag">Embedding de entrada = projeção de saída (economiza ~19M parâmetros)</span>
+<pre><code>self.proj.weight = self.encoder.embed.embed.weight</code></pre></div>
+
+<p><strong>Inferência auto-regressiva (geração de texto):</strong></p>
+<div class="code-block"><span class="lang-tag">Loop de geração — encoder roda 1 vez, decoder N vezes</span>
+<pre><code>enc_output = model.encoder(src)              # 1 vez (Z_enc fixo)
+
+generated = [&lt;s&gt;]
+for step in range(max_tokens):
+    dec_out = model.decoder(generated, enc_output)
+    next_token = softmax(model.proj(dec_out[:, -1, :]) / T).argmax()
+    generated.append(next_token)               # auto-alimentação!
+    if next_token == &lt;/s&gt;: break</code></pre></div>
+
+<p><strong>Teacher forcing (treino):</strong> o decoder recebe a saída completa deslocada em 1. "<s>" prevê token 1, "<s> tok1" prevê token 2, etc. A máscara triangular impede "cola".</p>
+
+<h4>Pré-requisitos</h4>
+<p>Todos os 8 fundamentos do Transformer + <a href="#pipeline-completa">Pipeline Completa</a>. Não precisa saber PyTorch — o guia ensina do zero.</p>
         </div>
       </div>
     </article>
