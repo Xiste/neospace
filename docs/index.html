@@ -4,6 +4,20 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Neospace — Wiki da Otimização de IA</title>
+<script>
+MathJax = {
+  tex: {
+    inlineMath: [['$', '$'], ['\\(', '\\)']],
+    displayMath: [['$$', '$$'], ['\\[', '\\]']],
+    processEscapes: true
+  },
+  options: {
+    ignoreHtmlClass: 'no-math',
+    processHtmlClass: 'math'
+  }
+};
+</script>
+<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
 <style>
   :root {
     --bg: #0d1117;
@@ -216,6 +230,13 @@
   }
   .quiz-option.wrong input[type="radio"] { border-color: #f85149; background: #f85149; box-shadow: inset 0 0 0 3px var(--bg); }
   .quiz-option.locked { pointer-events: none; opacity: 0.85; }
+  /* Math blocks */
+  .math-block {
+    background: var(--code-bg); border: 1px solid var(--border);
+    border-radius: 8px; padding: 20px 24px; margin: 16px 0;
+    overflow-x: auto;
+  }
+  .math-block mjx-container { font-size: 1.05rem; }
   .quiz-option .letter {
     width: 20px; height: 20px; border-radius: 50%; flex-shrink: 0;
     background: var(--border); color: var(--text); font-size: 10px; font-weight: 700;
@@ -692,10 +713,10 @@ Com escala: softmax([6.25, 0.63, 0.38]) = [0.85, 0.08, 0.07]  ← saudável</cod
 <p><strong>Passo 4: Softmax</strong> — normaliza cada linha para soma = 1 (distribuição de probabilidade)</p>
 <p><strong>Passo 5: Multiplicar por V</strong> — cada token de saída é uma soma ponderada dos Values de TODOS os tokens:</p>
 
-<div class="code-block"><span class="lang-tag">Equação completa — Scaled Dot-Product Attention</span>
-<pre><code>Attention(Q, K, V) = softmax(Q·Kᵀ / √d_k)·V
-
-Complexidade: O(n²·d) — dominada pelo produto Q·Kᵀ</code></pre></div>
+<div class="math-block">
+$$\text{Attention}(Q, K, V) = \text{softmax}\!\left(\frac{QK^T}{\sqrt{d_k}}\right)V$$
+<p style="text-align:center;font-size:13px;color:var(--muted);margin-top:8px">Complexidade: $O(n^2 \cdot d)$ — dominada pelo produto $QK^T$</p>
+</div>
 
 <h4>Na Prática — Custo Real na GPU</h4>
 <table>
@@ -817,22 +838,19 @@ Cabeça 8: (outro padrão emergente)</code></pre></div>
 
 <h4>Matemática — 8 Atenções em Paralelo</h4>
 <p>Cada cabeça i tem suas próprias projeções W_Q_i, W_K_i, W_V_i (512→64). Depois, concatena os 8 resultados e projeta com W_O:</p>
-<div class="code-block"><span class="lang-tag">Multi-Head Attention — Visão Completa</span>
-<pre><code>MultiHead(Q, K, V) = Concat(head₁, head₂, ..., head₈) · W_O
-
-head_i = Attention(Q·W_Q_i, K·W_K_i, V·W_V_i)
-
-Parâmetros:
-  h = 8 cabeças
-  d_k = d_v = d_model/h = 512/8 = 64
-  W_Q_i, W_K_i ∈ ℝ^{512×64}     ← 8 × 2 × (512×64) = ~524K
-  W_V_i        ∈ ℝ^{512×64}     ← 8 × (512×64) = ~262K
-  W_O          ∈ ℝ^{512×512}    ← ~262K
-  Total: ~1.05M parâmetros</code></pre></div>
+<div class="math-block">
+$$\text{MultiHead}(Q, K, V) = \text{Concat}(\text{head}_1, \ldots, \text{head}_h)\,W^O$$
+$$\text{head}_i = \text{Attention}(QW^Q_i, KW^K_i, VW^V_i)$$
+<p style="text-align:center;font-size:13px;color:var(--muted);margin-top:8px">
+$h = 8$ cabeças &nbsp;|&nbsp; $d_k = d_v = d_{model}/h = 512/8 = 64$<br>
+$W^Q_i, W^K_i \in \mathbb{R}^{512 \times 64}$ &nbsp;|&nbsp; $W^V_i \in \mathbb{R}^{512 \times 64}$ &nbsp;|&nbsp; $W^O \in \mathbb{R}^{512 \times 512}$<br>
+Total: ~1.05M parâmetros
+</p>
+</div>
 
 <p><strong>Por que o custo é quase igual ao de 1 cabeça?</strong></p>
-<p>Single head (d_k=512): O(n² × 512)<br>
-Multi head (d_k=64): 8 × O(n² × 64) = O(n² × 512)<br>
+<p>Single head ($d_k=512$): $O(n^2 \cdot 512)$<br>
+Multi head ($d_k=64$): $8 \times O(n^2 \cdot 64) = O(n^2 \cdot 512)$<br>
 O número total de multiplicações é idêntico. A diferença é que 8 cabeças permitem especialização.</p>
 
 <p><strong>Por que h=8 é o ponto ótimo?</strong> Muitas cabeças → cada uma tem d_k muito pequeno → perde capacidade de representação. Poucas cabeças → perde especialização. O paper testou e 8 foi o sweet spot empírico.</p>
@@ -951,18 +969,17 @@ Todas as células são preenchidas. Cada token contextualiza
 seu significado com a frase inteira de uma só vez.</code></pre></div>
 
 <h4>Tipo 2: Decoder Masked Self-Attention</h4>
-<p>ANTES do softmax, aplica-se uma máscara com −∞ nas posições futuras. O softmax de −∞ = 0:</p>
-<div class="code-block"><span class="lang-tag">Máscara triangular + matriz de atenção resultante</span>
-<pre><code>Máscara M:                    Resultado após softmax:
-       O  gato  que  comeu          O  gato  que  comeu
-O    [ 0  -∞    -∞    -∞  ]   O    [1.0   0    0     0  ]
-gato [ 0   0    -∞    -∞  ]   gato [0.3  0.7   0     0  ]
-que  [ 0   0     0    -∞  ]   que  [0.1  0.2  0.7   0  ]
-comeu[ 0   0     0     0  ]   comeu[0.1  0.1  0.3  0.5 ]
-
-Por que isso é necessário? Durante o treino, o modelo recebe
-a sequência completa (teacher forcing). A máscara impede que
-ele "cole" olhando a resposta correta na posição seguinte.</code></pre></div>
+<p>ANTES do softmax, aplica-se uma máscara com $-\infty$ nas posições futuras. O softmax de $-\infty = 0$:</p>
+<div class="math-block">
+$$M_{ij} = \begin{cases} 0 & \text{se } j \leq i \\ -\infty & \text{se } j > i \end{cases}$$
+$$\text{softmax}(QK^T + M) = \begin{bmatrix}
+1.0 & 0 & 0 & 0 \\
+0.3 & 0.7 & 0 & 0 \\
+0.1 & 0.2 & 0.7 & 0 \\
+0.1 & 0.1 & 0.3 & 0.5
+\end{bmatrix}$$
+</div>
+<p>Por que isso é necessário? Durante o treino, o modelo recebe a sequência completa (teacher forcing). A máscara impede que ele "cole" olhando a resposta correta na posição seguinte.</p>
 
 <h4>Tipo 3: Cross-Attention (Encoder→Decoder)</h4>
 <p>O decoder precisa de informação da frase de entrada. Q vem do decoder ("o que estou tentando gerar?"), K e V vêm do encoder ("aqui está o significado da entrada"):</p>
@@ -1082,14 +1099,13 @@ Não tem máscara — o decoder pode ver o encoder inteiro</code></pre></div>
 <p>A combinação única das posições dos 3 ponteiros codifica qualquer horário do dia com precisão de segundos. O Positional Encoding faz o mesmo com <strong>256 "ponteiros"</strong> (pares seno/cosseno) em vez de 3.</p>
 
 <h4>Matemática — Senos e Cossenos</h4>
-<div class="code-block"><span class="lang-tag">Positional Encoding — Equações</span>
-<pre><code>Dimensões pares (2i):   PE(pos, 2i)   = sin(pos / 10000^(2i/d_model))
-Dimensões ímpares (2i+1): PE(pos, 2i+1) = cos(pos / 10000^(2i/d_model))
-
-Onde:
-  pos = 0, 1, 2, ..., n-1    (posição do token)
-  i   = 0, 1, ..., 255        (índice do par seno/cosseno)
-  d_model = 512</code></pre></div>
+<div class="math-block">
+$$PE_{(pos,\,2i)} = \sin\!\left(\frac{pos}{10000^{2i/d_{model}}}\right)$$
+$$PE_{(pos,\,2i+1)} = \cos\!\left(\frac{pos}{10000^{2i/d_{model}}}\right)$$
+<p style="text-align:center;font-size:13px;color:var(--muted);margin-top:8px">
+$pos = 0, 1, 2, \ldots, n-1$ &nbsp;|&nbsp; $i = 0, 1, \ldots, d_{model}/2 - 1$ &nbsp;|&nbsp; $d_{model} = 512$
+</p>
+</div>
 
 <p><strong>As frequências formam progressão geométrica:</strong></p>
 <table>
@@ -1108,21 +1124,21 @@ Onde:
 <h4>Por que "PE(pos+k) é linear em PE(pos)" é a Chave de Tudo</h4>
 <p>Lembra das identidades trigonométricas?</p>
 <div class="code-block"><span class="lang-tag">Identidades do ensino médio que fazem o PE funcionar</span>
-<pre><code>sin(a + b) = sin(a)·cos(b) + cos(a)·sin(b)
-cos(a + b) = cos(a)·cos(b) − sin(a)·sin(b)</code></pre></div>
+<div class="math-block">
+$$\sin(a + b) = \sin(a)\cos(b) + \cos(a)\sin(b)$$
+$$\cos(a + b) = \cos(a)\cos(b) - \sin(a)\sin(b)$$
+</div>
 
-<p>Agora aplica isso ao PE na posição <code>pos + k</code> para uma dimensão par 2i:</p>
-<div class="code-block"><span class="lang-tag">Passo a passo da mágica</span>
-<pre><code>PE(pos+k, 2i) = sin((pos + k) / 10000^(2i/d))
-               = sin(pos/10000^(2i/d) + k/10000^(2i/d))
-
-               = sin(pos/10000^(2i/d)) · cos(k/10000^(2i/d))
-               + cos(pos/10000^(2i/d)) · sin(k/10000^(2i/d))
-
-               = PE(pos, 2i) · A + PE(pos, 2i+1) · B
-
-Onde A = cos(k/10000^(2i/d)) e B = sin(k/10000^(2i/d))
-dependem APENAS de k (a distância), não de pos!</code></pre></div>
+<p>Agora aplica isso ao PE na posição $pos + k$ para uma dimensão par $2i$:</p>
+<div class="math-block">
+$$PE_{(pos+k,\,2i)} = \sin\!\left(\frac{pos + k}{10000^{2i/d}}\right)$$
+$$= \sin\!\left(\frac{pos}{10000^{2i/d}} + \frac{k}{10000^{2i/d}}\right)$$
+$$= \underbrace{\sin\!\left(\frac{pos}{10000^{2i/d}}\right)}_{PE_{(pos,2i)}} \cdot \cos\!\left(\frac{k}{10000^{2i/d}}\right) + \underbrace{\cos\!\left(\frac{pos}{10000^{2i/d}}\right)}_{PE_{(pos,2i+1)}} \cdot \sin\!\left(\frac{k}{10000^{2i/d}}\right)$$
+$$= PE_{(pos,\,2i)} \cdot A + PE_{(pos,\,2i+1)} \cdot B$$
+<p style="text-align:center;font-size:13px;color:var(--muted);margin-top:8px">
+$A = \cos(k/10000^{2i/d})$ e $B = \sin(k/10000^{2i/d})$ dependem APENAS de $k$ (distância), não de $pos$!
+</p>
+</div>
 
 <p><strong>Traduzindo para a prática:</strong> PE(pos+k) é uma combinação linear de PE(pos). Os coeficientes dependem apenas de <strong>k</strong> (distância), não de <strong>pos</strong> (posição absoluta). Isso significa que se o modelo aprende "atenção ao token que está a 3 posições de distância", essa mesma transformação funciona em QUALQUER lugar da sequência — pos=5, pos=100, ou pos=5000.</p>
 
@@ -1273,20 +1289,21 @@ Depois: γ × normalizado + β  (γ e β são aprendidos)</code></pre></div>
 
 <h4>Matemática</h4>
 <p><strong>Feed-Forward Network completa:</strong></p>
-<div class="code-block"><span class="lang-tag">FFN — Equação</span>
-<pre><code>FFN(x) = ReLU(x·W₁ + b₁)·W₂ + b₂
-
-  W₁: 512 × 2048  (expansão 4×)
-  W₂: 2048 × 512  (contração)
-  ReLU: max(0, x) — zera valores negativos</code></pre></div>
+<div class="math-block">
+$$\text{FFN}(x) = \text{ReLU}(xW_1 + b_1)W_2 + b_2$$
+<p style="text-align:center;font-size:13px;color:var(--muted);margin-top:8px">
+$W_1 \in \mathbb{R}^{512 \times 2048}$ (expansão $4\times$) &nbsp;|&nbsp; $W_2 \in \mathbb{R}^{2048 \times 512}$ (contração)
+</p>
+</div>
 
 <p><strong>LayerNorm:</strong></p>
-<div class="code-block"><span class="lang-tag">LayerNorm — Equação</span>
-<pre><code>μ = (1/d_model) · Σ x_i           (média do token)
-σ = sqrt((1/d_model) · Σ (x_i - μ)²)  (desvio padrão)
-LayerNorm(x) = γ · (x - μ)/σ + β
-
-γ e β ∈ ℝ⁵¹²  (aprendidos — permitem "desfazer" a normalização)</code></pre></div>
+<div class="math-block">
+$$\mu = \frac{1}{d_{model}}\sum_i x_i \qquad \sigma = \sqrt{\frac{1}{d_{model}}\sum_i (x_i - \mu)^2}$$
+$$\text{LayerNorm}(x) = \gamma \cdot \frac{x - \mu}{\sigma} + \beta$$
+<p style="text-align:center;font-size:13px;color:var(--muted);margin-top:8px">
+$\gamma, \beta \in \mathbb{R}^{d_{model}}$ — aprendidos, permitem "desfazer" a normalização
+</p>
+</div>
 
 <p><strong>BatchNorm vs LayerNorm — diferença crucial:</strong></p>
 <table>
@@ -1458,15 +1475,14 @@ SAÍDA (auto-regressiva):
 
 <h4>Treinamento — O Loop Completo</h4>
 <p><strong>Otimizador Adam com Warmup:</strong></p>
-<div class="code-block"><span class="lang-tag">Learning Rate Schedule</span>
-<pre><code>lr = d_model^(-0.5) × min(step_num^(-0.5), step_num × warmup^(-1.5))
-
-Passos 0 → 4000:        lr aumenta linearmente de 0 até ~7×10⁻⁴
-                         (warmup — estabiliza gradientes no início)
-Passos 4000 → 100.000:   lr decai proporcional a 1/√step
-
-Adam: β₁=0.9, β₂=0.98, ε=10⁻⁹
-Batch: ~25.000 tokens (origem + destino)</code></pre></div>
+<div class="math-block">
+$$lr = d_{model}^{-0.5} \cdot \min\!\big(step\_num^{-0.5},\; step\_num \cdot warmup\_steps^{-1.5}\big)$$
+<p style="text-align:center;font-size:13px;color:var(--muted);margin-top:8px">
+Passos $0 \to 4000$: lr aumenta linearmente (warmup)<br>
+Passos $4000+$: lr decai $\propto 1/\sqrt{step}$<br>
+Adam: $\beta_1=0.9,\; \beta_2=0.98,\; \varepsilon=10^{-9}$ &nbsp;|&nbsp; Batch: ~25K tokens
+</p>
+</div>
 
 <p><strong>Por que warmup?</strong> No início, os pesos são aleatórios e a atenção pode produzir sinais instáveis. Começar com lr muito alto faria o modelo divergir. O warmup aumenta gradualmente, permitindo que o otimizador se estabilize.</p>
 
@@ -1575,14 +1591,14 @@ Batch: ~25.000 tokens (origem + destino)</code></pre></div>
 
 <!-- ===== O PROBLEMA ===== -->
 <h4>O Problema</h4>
-<p>Dados Q, K, V ∈ ℝ<sup>N×d</sup>, a atenção padrão calcula:</p>
-<div class="code-block"><span class="lang-tag">Atenção Padrão — 3 passos, 2 escritas N×N na HBM</span>
-<pre><code>S = Q @ K.T          // [N×N] → escreve na HBM
-P = softmax(S)        // [N×N] → escreve na HBM
-O = P @ V             // [N×d] → escreve na HBM
-
-Total de acessos HBM: Θ(Nd + N²)</code></pre></div>
-<p>Para N=1024, d=64, 16 cabeças, batch=64 em A100: <strong>40.3 GB</strong> de leitura/escrita na HBM. O Flash Attention reduz isso para <strong>4.4 GB</strong> — 9× menos — eliminando as escritas das matrizes S e P. A GPU não é lenta calculando; é lenta <strong>movendo dados</strong>.</p>
+<p>Dados $Q, K, V \in \mathbb{R}^{N \times d}$, a atenção padrão calcula:</p>
+<div class="math-block">
+$$S = QK^T \in \mathbb{R}^{N \times N}, \quad P = \text{softmax}(S), \quad O = PV \in \mathbb{R}^{N \times d}$$
+<p style="text-align:center;font-size:13px;color:var(--muted);margin-top:8px">
+Cada passo escreve e lê da HBM. Total de acessos: $\Theta(Nd + N^2)$
+</p>
+</div>
+<p>Para $N=1024$, $d=64$, 16 cabeças, batch=64 em A100: <strong>40.3 GB</strong> de leitura/escrita na HBM. O Flash Attention reduz isso para <strong>4.4 GB</strong> — 9× menos — eliminando as escritas das matrizes $S$ e $P$. A GPU não é lenta calculando; é lenta <strong>movendo dados</strong>.</p>
 
 <table>
   <tr><th>Comprimento N</th><th>Matriz N×N (FP16)</th><th>Economia FA</th></tr>
@@ -1680,8 +1696,8 @@ Total de acessos HBM: Θ(Nd + N²)</code></pre></div>
 <h4>Complexidade de IO</h4>
 <table>
   <tr><th>Métrica</th><th>Atenção Padrão</th><th>Flash Attention</th></tr>
-  <tr><td>Acessos HBM</td><td>Θ(Nd + N²)</td><td>Θ(N²d²/M)</td></tr>
-  <tr><td>Memória extra</td><td>O(N²)</td><td>O(N)</td></tr>
+  <tr><td>Acessos HBM</td><td>$\Theta(Nd + N^2)$</td><td>$\Theta(N^2d^2/M)$</td></tr>
+  <tr><td>Memória extra</td><td>$O(N^2)$</td><td>$O(N)$</td></tr>
   <tr><td colspan="3"><strong>Exemplo real: GPT-2 medium, N=1024, d=64, 16 cabeças, batch=64, A100</strong></td></tr>
   <tr><td>GFLOPs</td><td>66.6</td><td>75.2 (+13%, recomputação)</td></tr>
   <tr><td>HBM R/W (GB)</td><td>40.3</td><td>4.4 (<strong>-89%!</strong>)</td></tr>
@@ -2231,24 +2247,30 @@ Saída: O, L (logsumexp)
 </ul>
 <p>Quando um novo bloco chega, a correção <code>exp(m_velho - m_novo)</code> rescala todos os exponenciais antigos para a nova base. Sem isso, os números estouram (overflow) ou viram zero (underflow).</p>
 <div class="code-block"><span class="lang-tag">Exemplo numérico simples</span>
-<pre><code>Bloco 1: scores = [2, 1, 3]
-  m = 3, l = e^(2-3) + e^(1-3) + e^(3-3) = 1.503
-
-Bloco 2: scores = [5, 0, 4]  ← novo máximo 5 > 3!
-  m_novo = 5
-  l = 1.503 * e^(3-5) + e^(5-5) + e^(0-5) + e^(4-5)
-    = 1.503 * 0.135 + 1 + 0.007 + 0.368
-    = 1.578</code></pre></div>
-<p>O fator <code>e^(3-5) = 0.135</code> "encolheu" os exponenciais do bloco 1 para a base correta.</p>
+<div class="math-block">
+$$\begin{aligned}
+\text{Bloco 1: scores } &= [2, 1, 3] \\
+m &= 3 \\
+\ell &= e^{2-3} + e^{1-3} + e^{3-3} = 1.503 \\[8pt]
+\text{Bloco 2: scores } &= [5, 0, 4] \quad \leftarrow \text{novo máximo } 5 > 3! \\
+m_{novo} &= 5 \\
+\ell &= 1.503 \cdot e^{3-5} + e^{5-5} + e^{0-5} + e^{4-5} \\
+    &= 1.503 \cdot 0.135 + 1 + 0.007 + 0.368 \\
+    &= 1.578
+\end{aligned}$$
+</div>
+<p>O fator $e^{3-5} = 0.135$ "encolheu" os exponenciais do bloco 1 para a base correta.</p>
 <p><strong>Por que importa:</strong> é o que viabiliza o tiling no cálculo da atenção. Sem o online softmax, você precisaria da matriz N×N inteira — exatamente o que o Flash Attention evita.</p>
 <a href="#flash-attention">⬆ Voltar ao Flash Attention</a>
 
 <!-- ===== Softmax ===== -->
 <h4 id="glossario-softmax">🔢 Softmax</h4>
 <p>Função que converte um vetor de números quaisquer em <strong>probabilidades que somam 1</strong>. É a função mais usada em redes neurais quando o modelo precisa "escolher" entre várias opções.</p>
-<p><strong>Fórmula:</strong> <code>softmax(z_i) = e^(z_i) / Σ e^(z_j)</code></p>
+<div class="math-block">
+$$\text{softmax}(z_i) = \frac{e^{z_i}}{\sum_{j=1}^{n} e^{z_j}}$$
+</div>
 <p><strong>Intuição:</strong> um concurso onde cada candidato recebe uma nota. A softmax transforma notas em "chance de ser escolhido" — notas maiores ganham mais chance, mas todos recebem pelo menos um pouco. Ex: notas [2, 1, 0] → softmax → [67%, 24%, 9%].</p>
-<p><strong>Onde aparece:</strong> atenção (converte scores QKᵀ em pesos), saída do Transformer (logits → probabilidades).</p>
+<p><strong>Onde aparece:</strong> atenção (converte scores $QK^T$ em pesos), saída do Transformer (logits → probabilidades).</p>
 
 <!-- ===== BLEU ===== -->
 <h4 id="glossario-bleu">📊 BLEU (Bilingual Evaluation Understudy)</h4>
@@ -2261,10 +2283,10 @@ Bloco 2: scores = [5, 0, 4]  ← novo máximo 5 > 3!
 <p>Notação matemática que descreve <strong>como algo cresce</strong> quando o tamanho da entrada (n) aumenta. Não é um número exato — é a tendência.</p>
 <table>
   <tr><th>Notação</th><th>Significado</th><th>Exemplo real</th></tr>
-  <tr><td>O(1)</td><td>Tempo/memória constante</td><td>Acessar array por índice</td></tr>
-  <tr><td>O(n)</td><td>Cresce linearmente</td><td>Somar elementos de uma lista</td></tr>
-  <tr><td>O(n²)</td><td>Cresce quadraticamente</td><td>Atenção padrão (cada token × cada token)</td></tr>
-  <tr><td>O(n·d)</td><td>Linear em ambas dimensões</td><td>Multiplicar matriz n×d por vetor</td></tr>
+  <tr><td>$O(1)$</td><td>Tempo/memória constante</td><td>Acessar array por índice</td></tr>
+  <tr><td>$O(n)$</td><td>Cresce linearmente</td><td>Somar elementos de uma lista</td></tr>
+  <tr><td>$O(n^2)$</td><td>Cresce quadraticamente</td><td>Atenção padrão (cada token × cada token)</td></tr>
+  <tr><td>$O(n \cdot d)$</td><td>Linear em ambas dimensões</td><td>Multiplicar matriz $n \times d$ por vetor</td></tr>
 </table>
 <p><strong>Por que importa:</strong> o problema central da atenção é O(n²) em memória — se a sequência dobra, a memória quadruplica. Flash Attention reduz isso para O(n).</p>
 
@@ -2306,7 +2328,10 @@ Bloco 2: scores = [5, 0, 4]  ← novo máximo 5 > 3!
 <h4 id="glossario-cross-entropy">🎯 Cross-Entropy (Entropia Cruzada)</h4>
 <p>Função de perda (loss) que mede a diferença entre a previsão do modelo e o valor real. É a função padrão para classificação e modelos de linguagem.</p>
 <p><strong>Intuição:</strong> se o modelo prevê 90% de chance para a palavra correta, cross-entropy ≈ 0.1 (baixa). Se prevê só 10%, ≈ 2.3 (alta). O treino minimiza essa função para o modelo ficar cada vez mais "certo".</p>
-<p><strong>Fórmula:</strong> <code>L = -Σ y_i · log(p_i)</code> onde y_i é o valor real e p_i é a previsão do modelo.</p>
+<div class="math-block">
+$$\mathcal{L} = -\sum_i y_i \log(p_i)$$
+</div>
+<p>$y_i$ é o valor real (1 para classe correta, 0 para as outras) e $p_i$ é a previsão do modelo.</p>
 
 <!-- ===== Perplexity ===== -->
 <h4 id="glossario-perplexity">❓ Perplexity (Perplexidade)</h4>
