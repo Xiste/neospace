@@ -4,19 +4,19 @@
 
 Você já estudou cada peça separadamente — tokenização, embeddings, self-attention, multi-head, encoder, decoder. Mas como elas se **conectam** de verdade? O que exatamente entra e sai de cada etapa?
 
-Este guia percorre a pipeline INTEIRA com um exemplo concreto: traduzir **"The cat sat"** → **"O gato sentou"**.
+Este guia percorre a pipeline INTEIRA com um exemplo concreto em português: processar **"O gato dormiu"** no encoder, e o decoder gerar **"no telhado quente"** auto-regressivamente.
 
 ---
 
 ## Visão Geral da Pipeline
 
 ```
-"The cat sat"
+"O gato dormiu"
      │
      ▼
 ┌──────────────────────────────────────────────────────────────┐
 │ 1. TOKENIZAÇÃO                                                │
-│    "The cat sat" → ["The", "cat", "sat"] → IDs: [2456, 5432, 8871]  │
+│    "O gato dormiu" → ["O", "gato", "dormiu"] → IDs: [87, 5432, 9103] │
 └──────────────────────────┬───────────────────────────────────┘
                            ▼
 ┌──────────────────────────────────────────────────────────────┐
@@ -27,7 +27,7 @@ Este guia percorre a pipeline INTEIRA com um exemplo concreto: traduzir **"The c
                            ▼
 ┌──────────────────────────────────────────────────────────────┐
 │ 3. ENCODER (6 camadas, cada uma com Self-Attention + FFN)     │
-│    "sat" descobre que seu sujeito é "The cat"                  │
+│    "dormiu" descobre que seu sujeito é "O gato"               │
 │    Saída Z_enc: matriz 3×512 (contextualizada)                 │
 └──────────────────────────┬───────────────────────────────────┘
                            ▼
@@ -35,14 +35,14 @@ Este guia percorre a pipeline INTEIRA com um exemplo concreto: traduzir **"The c
 │ 4. DECODER — LOOP AUTO-REGRESSIVO                             │
 │    Itera até gerar o token de fim "</s>"                       │
 │    ┌──────────────────────────────────────────────────────┐   │
-│    │ Iteração 1: ["<s>"]           → gera "O"             │   │
-│    │ Iteração 2: ["<s>", "O"]      → gera "gato"          │   │
-│    │ Iteração 3: ["<s>","O","gato"]→ gera "sentou"        │   │
-│    │ Iteração 4: ["<s>","O","gato","sentou"] → "</s>"     │   │
+│    │ Iteração 1: ["<s>"]                → gera "no"       │   │
+│    │ Iteração 2: ["<s>", "no"]          → gera "telhado"  │   │
+│    │ Iteração 3: ["<s>","no","telhado"] → gera "quente"   │   │
+│    │ Iteração 4: [...,"quente"]         → gera "</s>"     │   │
 │    └──────────────────────────────────────────────────────┘   │
 └──────────────────────────┬───────────────────────────────────┘
                            ▼
-                      "O gato sentou"
+                      "no telhado quente"
 ```
 
 ---
@@ -52,11 +52,11 @@ Este guia percorre a pipeline INTEIRA com um exemplo concreto: traduzir **"The c
 A frase entra como texto bruto. O [tokenizador BPE](TOKENIZACAO.md) quebra em tokens conhecidos:
 
 ```
-"The cat sat"
+"O gato dormiu"
      │ BPE tokenizer (vocabulário de 37K tokens)
      ▼
-Tokens:  ["The", "cat", "sat"]
-IDs:     [ 2456,  5432,  8871 ]
+Tokens:  ["O", "gato", "dormiu"]
+IDs:     [ 87,  5432,   9103 ]
 ```
 
 **3 tokens** → sequência de comprimento `n_enc = 3`.
@@ -72,9 +72,9 @@ A tokenização é pré-processamento em CPU. O que entra na GPU são os IDs int
 Cada ID busca sua linha na **matriz de embedding E** (37.000 linhas × 512 colunas):
 
 ```
-ID 2456 ("The")  →  E[2456]  →  vetor de 512 floats (ex: [0.03, -0.12, 0.41, ...])
-ID 5432 ("cat")  →  E[5432]  →  vetor de 512 floats
-ID 8871 ("sat")  →  E[8871]  →  vetor de 512 floats
+ID 87   ("O")       →  E[87]    →  vetor de 512 floats (ex: [0.03, -0.12, 0.41, ...])
+ID 5432 ("gato")    →  E[5432]  →  vetor de 512 floats
+ID 9103 ("dormiu")  →  E[9103]  →  vetor de 512 floats
 ```
 
 ### 2b. Escala por √d_model
@@ -90,9 +90,9 @@ Embedding_final = Embedding × √512
 Para cada posição `pos` (0, 1, 2), calcula-se PE(pos) — vetor de 512 dimensões com senos e cossenos — e SOMA ao embedding:
 
 ```
-X_enc[0] = Embedding("The") × √512 + PE(0)   ← posição 0: dimensões baixas oscilam rápido
-X_enc[1] = Embedding("cat") × √512 + PE(1)   ← posição 1
-X_enc[2] = Embedding("sat") × √512 + PE(2)   ← posição 2
+X_enc[0] = Embedding("O")      × √512 + PE(0)   ← posição 0: dimensões baixas oscilam rápido
+X_enc[1] = Embedding("gato")   × √512 + PE(1)   ← posição 1
+X_enc[2] = Embedding("dormiu") × √512 + PE(2)   ← posição 2
 ```
 
 **Resultado:** matriz `X_enc` de tamanho **3 × 512** que entra no encoder.
@@ -122,13 +122,13 @@ Concatena 8 cabeças (3×512) · W_O → 3×512
 
 **O que acontece nos pesos de atenção:**
 ```
-         The   cat   sat
-The    [0.4   0.3   0.3 ]  ← "The" presta 40% de atenção em si mesma
-cat    [0.2   0.5   0.3 ]  ← "cat" presta 50% de atenção em si mesma
-sat    [0.5   0.4   0.1 ]  ← "sat" presta 50% de atenção em "The" (sujeito!)
+          O    gato   dormiu
+O      [0.4   0.3    0.3  ]  ← "O" divide atenção entre todos
+gato   [0.3   0.5    0.2  ]  ← "gato" foca 50% em si mesmo
+dormiu [0.5   0.4    0.1  ]  ← "dormiu" foca 50% em "O gato" (sujeito!)
 ```
 
-"sat" descobre que "The" é seu sujeito — isso é a mágica da atenção.
+"dormiu" descobre que "O gato" é seu sujeito — isso é a mágica da atenção.
 
 **Sub-camada 2 — Feed-Forward Network:**
 
@@ -140,7 +140,7 @@ FFN(x) = ReLU(x · W₁ + b₁) · W₂ + b₂
 
 Cada token é processado independentemente (a FFN não mistura tokens).
 
-**Após 6 camadas:** a saída `Z_enc` é uma matriz **3 × 512** onde cada token está profundamente contextualizado. "sat" sabe que é verbo, que seu sujeito é "The cat", e que está na terceira posição.
+**Após 6 camadas:** a saída `Z_enc` é uma matriz **3 × 512** onde cada token está profundamente contextualizado. "dormiu" sabe que é verbo, que seu sujeito é "O gato", e que está na terceira posição.
 
 **Z_enc é CONSTANTE** — o encoder termina aqui. Essa matriz será usada pelo decoder em TODAS as iterações.
 
@@ -186,7 +186,7 @@ Entrada do decoder (m tokens)
 
 ---
 
-### Iteração 1: Gerando "O"
+### Iteração 1: Gerando "no"
 
 **Entrada do decoder:** `["<s>"]` — apenas 1 token (ID=1)
 
@@ -199,124 +199,121 @@ Entrada do decoder (m tokens)
 
 3. Cross-Attention (a mágica acontece aqui):
    Q("<s>") pergunta: "qual parte da entrada é relevante para começar?"
-   K_enc responde: "The" é o mais relevante (é o sujeito da frase)
-   V_enc entrega o significado de "The"
+   K_enc responde: "O" e "gato" são os mais relevantes (artigo + sujeito)
+   V_enc entrega o significado de "O gato"
 
    Pesos da cross-attention para "<s>":
-   The: 0.60   cat: 0.25   sat: 0.15
+   O: 0.45   gato: 0.35   dormiu: 0.20
 
 4. FFN processa
 
 5. Projeção + Softmax sobre 37K tokens:
-   "O"    → 0.23  ← MAIOR probabilidade
-   "A"    → 0.08
-   "Um"   → 0.05
+   "no"      → 0.28  ← MAIOR probabilidade
+   "em"      → 0.10
+   "sobre"   → 0.06
    ... outros 36.997 tokens ...
 ```
 
-**Token gerado:** `"O"` (ID=87)
+**Token gerado:** `"no"` (ID=1543)
 
-**Auto-alimentação:** `"O"` é concatenado à entrada. Agora o decoder tem `["<s>", "O"]`.
+**Auto-alimentação:** `"no"` é concatenado à entrada. Agora o decoder tem `["<s>", "no"]`.
 
 ---
 
-### Iteração 2: Gerando "gato"
+### Iteração 2: Gerando "telhado"
 
-**Entrada do decoder:** `["<s>", "O"]` — 2 tokens
+**Entrada do decoder:** `["<s>", "no"]` — 2 tokens
 
 ```
-1. Embedding + PE(0) para "<s>", PE(1) para "O" → matriz 2×512
+1. Embedding + PE(0) para "<s>", PE(1) para "no" → matriz 2×512
 
 2. Masked Self-Attention:
    "<s>" vê ["<s>"]           ← só passado
-   "O"  vê ["<s>", "O"]      ← passado + ele mesmo
+   "no" vê ["<s>", "no"]     ← passado + ele mesmo
 
    Pesos (mascarados):
-          <s>    O
+          <s>    no
    <s>  [1.0   0.0 ]
-   O    [0.3   0.7 ]
+   no   [0.3   0.7 ]
 
 3. Cross-Attention:
-   Q("O") pergunta: "qual parte da entrada eu represento?"
-   K_enc responde: "The"!
+   Q("no") pergunta: "qual parte da entrada define ONDE?"
+   K_enc responde: "dormiu" (verbo) + "O gato" (sujeito)
 
-   Pesos da cross-attention para "O":
-   The: 0.65   cat: 0.20   sat: 0.15
+   Pesos da cross-attention para "no":
+   O: 0.30   gato: 0.30   dormiu: 0.40
 
 4. FFN processa
 
 5. Projeção + Softmax sobre 37K tokens:
-   "gato"  → 0.31  ← MAIOR
-   "cão"   → 0.12
-   "The"   → 0.07  (não faz sentido gerar inglês aqui)
+   "telhado" → 0.24  ← MAIOR
+   "sofá"    → 0.11
+   "chão"    → 0.08
    ...
 ```
 
-**Token gerado:** `"gato"` (ID=543)
+**Token gerado:** `"telhado"` (ID=7821)
 
-**Auto-alimentação:** entrada agora é `["<s>", "O", "gato"]`.
+**Auto-alimentação:** entrada agora é `["<s>", "no", "telhado"]`.
 
 ---
 
-### Iteração 3: Gerando "sentou"
+### Iteração 3: Gerando "quente"
 
-**Entrada do decoder:** `["<s>", "O", "gato"]` — 3 tokens
+**Entrada do decoder:** `["<s>", "no", "telhado"]` — 3 tokens
 
 ```
 1. Embedding + PE para os 3 tokens → matriz 3×512
 
 2. Masked Self-Attention:
-          <s>    O    gato
-   <s>  [1.0   0.0   0.0 ]
-   O    [0.2   0.8   0.0 ]
-   gato [0.1   0.3   0.6 ]
+          <s>    no   telhado
+   <s>   [1.0   0.0   0.0 ]
+   no    [0.2   0.8   0.0 ]
+   telhado[0.1  0.3   0.6 ]
 
-   "gato" presta atenção em "O" e "<s>" — sabe que "O gato" é o sujeito
+   "telhado" presta atenção em "no" e "<s>" — contexto do que já foi gerado
 
 3. Cross-Attention:
-   Q("gato") pergunta: "qual parte da entrada eu represento?"
-   K_enc responde: "cat"!
+   Q("telhado") pergunta: "qual característica do local?"
+   K_enc responde: contexto geral da cena — "gato dormiu"
 
-   Pesos da cross-attention para "gato":
-   The: 0.15   cat: 0.70   sat: 0.15
+   Pesos da cross-attention para "telhado":
+   O: 0.25   gato: 0.35   dormiu: 0.40
 
 4. FFN processa
 
 5. Projeção + Softmax:
-   "sentou" → 0.27  ← MAIOR
-   "está"   → 0.10
-   "comeu"  → 0.05
+   "quente"  → 0.22  ← MAIOR
+   "frio"    → 0.09
+   "escuro"  → 0.07
    ...
 ```
 
-**Token gerado:** `"sentou"` (ID=1234)
+**Token gerado:** `"quente"` (ID=5612)
 
-**Auto-alimentação:** entrada agora é `["<s>", "O", "gato", "sentou"]`.
+**Auto-alimentação:** entrada agora é `["<s>", "no", "telhado", "quente"]`.
 
 ---
 
 ### Iteração 4: Gerando o Fim
 
-**Entrada do decoder:** `["<s>", "O", "gato", "sentou"]` — 4 tokens
+**Entrada do decoder:** `["<s>", "no", "telhado", "quente"]` — 4 tokens
 
 ```
 3. Cross-Attention:
-   Q("sentou") pergunta: "qual parte da entrada?"
-   K_enc responde: "sat"!
-
-   Pesos:
-   The: 0.30   cat: 0.25   sat: 0.45
+   Q("quente") pergunta: "já terminei a descrição?"
+   Pesos distribuídos sobre todo Z_enc: O: 0.30  gato: 0.30  dormiu: 0.40
 
 5. Projeção + Softmax:
-   "</s>"   → 0.42  ← MAIOR (token de fim)
-   "no"     → 0.08
-   "sobre"  → 0.05
+   "</s>"    → 0.38  ← MAIOR (token de fim)
+   "e"       → 0.12
+   "mas"     → 0.06
    ...
 ```
 
 **Token gerado:** `"</s>"` (token de fim)
 
-→ **Geração concluída.**
+→ **Geração concluída.** O decoder gerou **"no telhado quente"** como continuação de "O gato dormiu".
 
 ---
 
@@ -326,32 +323,32 @@ Entrada do decoder (m tokens)
 TEMPO →
                     Z_enc (FIXO, calculado 1 vez pelo encoder)
                     ┌──────────┬──────────┬──────────┐
-                    │ "The"    │ "cat"    │ "sat"    │
+                    │ "O"      │ "gato"   │ "dormiu" │
                     │ (512dim) │ (512dim) │ (512dim) │
                     └────┬─────┴────┬─────┴────┬─────┘
                          │          │          │
                     K,V  │     K,V  │     K,V  │
                          │          │          │
-Iteração 1:  <s> ──Q───The─────────cat────────sat──→ "O"
+Iteração 1:  <s> ──Q───O─────────gato──────dormiu───→ "no"
                          │          │          │
-Iteração 2:  <s> ──Q───The─────────cat────────sat──→ "gato"
-             O   ──Q───The─────────cat────────sat──
+Iteração 2:  <s> ──Q───O─────────gato──────dormiu───→ "telhado"
+             no  ──Q───O─────────gato──────dormiu──
                          │          │          │
-Iteração 3:  <s> ──Q───The─────────cat────────sat──→ "sentou"
-             O   ──Q───The─────────cat────────sat──
-             gato──Q───The─────────cat────────sat──
+Iteração 3:  <s> ──Q───O─────────gato──────dormiu───→ "quente"
+             no  ──Q───O─────────gato──────dormiu──
+             telhado─Q──O─────────gato──────dormiu──
                          │          │          │
-Iteração 4:  <s> ──Q───The─────────cat────────sat──→ "</s>"
-             O   ──Q───The─────────cat────────sat──   (fim)
-             gato──Q───The─────────cat────────sat──
-             sentou─Q──The─────────cat────────sat──
+Iteração 4:  <s> ──Q───O─────────gato──────dormiu───→ "</s>"
+             no  ──Q───O─────────gato──────dormiu──    (fim)
+             telhado─Q──O─────────gato──────dormiu──
+             quente──Q──O─────────gato──────dormiu──
 ```
 
 **Observe:**
 - **Z_enc NUNCA muda** — o encoder rodou 1 vez e acabou
 - **Q muda a cada token** — cada palavra gerada faz uma pergunta diferente ao encoder
 - **A entrada do decoder CRESCE** a cada iteração — tokens gerados alimentam a próxima iteração (auto-regressivo)
-- **A masked self-attention garante** que "gato" não veja "sentou" (futuro) durante o treino
+- **A masked self-attention garante** que "telhado" não veja "quente" (futuro) durante o treino
 
 ---
 
@@ -361,11 +358,11 @@ A beleza do Transformer está nos **padrões que emergem** naturalmente do trein
 
 | Token gerado | Atende mais a... | Tipo de relação |
 |---|---|---|
-| "O" | "The" | Tradução direta (artigo) |
-| "gato" | "cat" | Tradução direta (substantivo) |
-| "sentou" | "sat" + "The cat" | Tradução + concordância (sujeito) |
+| "no" | "dormiu" (0.40) + "O gato" (0.60) | Preposição ligada ao verbo e sujeito |
+| "telhado" | "dormiu" (0.40) + "gato" (0.30) | Substantivo-lugar ligado ao verbo |
+| "quente" | "dormiu" (0.40) + "gato" (0.35) | Adjetivo ligado ao contexto da cena |
 
-A cross-attention aprendeu **alinhamento bilíngue** sem supervisão explícita. Ninguém disse ao modelo "The = O" ou "cat = gato" — ele descobriu sozinho.
+A cross-attention aprendeu a **conectar a geração com o contexto relevante** sem supervisão explícita. Ninguém disse ao modelo que "dormiu" pede um lugar ou que "telhado" combina com "gato" — ele descobriu sozinho durante o treino, apenas otimizando a função de perda.
 
 ---
 
@@ -393,8 +390,8 @@ TODOS os fundamentos do Transformer (ordem de estudo):
 
 ## Perguntas de Revisão
 
-1. Quantas vezes o encoder roda para traduzir uma frase? E o decoder?
-2. Por que a entrada do decoder cresce a cada iteração? O que acontece com K e V do decoder?
-3. Na iteração 3, o que "gato" vê na masked self-attention? E na cross-attention?
+1. Quantas vezes o encoder roda para processar "O gato dormiu"? E o decoder?
+2. Por que a entrada do decoder cresce a cada iteração? O que acontece com Z_enc?
+3. Na iteração 3, o que "telhado" vê na masked self-attention? E na cross-attention?
 4. O que mudaria se a masked self-attention fosse removida do decoder durante a inferência?
-5. Se a frase de entrada fosse "The black cat sat quietly", o que mudaria no Z_enc? E no loop do decoder?
+5. Se a frase de entrada fosse "O gato preto dormiu tranquilamente", o que mudaria no Z_enc? E no loop do decoder?

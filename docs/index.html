@@ -15,7 +15,7 @@ MathJax = {
     ignoreHtmlClass: 'no-math',
     processHtmlClass: 'math'
   }
-};
+};tr
 </script>
 <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
 <style>
@@ -1650,36 +1650,36 @@ Adam: $\beta_1=0.9,\; \beta_2=0.98,\; \varepsilon=10^{-9}$ &nbsp;|&nbsp; Batch: 
       <div class="topic-marker done"></div>
       <div class="topic-card">
         <div class="topic-header">
-          <h3>9. Pipeline Completa — Exemplo "The cat sat" → "O gato sentou"</h3>
+          <h3>9. Pipeline Completa — Exemplo "O gato dormiu" → "no telhado quente"</h3>
           <span class="topic-badge done">🟢 Dominado</span>
         </div>
         <div class="topic-body">
 <h4>Visão Geral</h4>
 <p>Um exemplo concreto percorrendo a pipeline INTEIRA do Transformer, da tokenização até o último token gerado pelo decoder.</p>
 
-<div class="code-block"><span class="lang-tag">Pipeline completa — "The cat sat" → "O gato sentou"</span>
-<pre><code>"The cat sat"
+<div class="code-block"><span class="lang-tag">Pipeline completa — "O gato dormiu" → "no telhado quente"</span>
+<pre><code>"O gato dormiu"
      │
      ▼
 ┌──────────────────────────────────────────────────────────┐
 │ 1. TOKENIZAÇÃO (BPE)                                      │
-│    "The cat sat" → ["The", "cat", "sat"]                  │
-│    IDs: [2456, 5432, 8871]                                │
+│    "O gato dormiu" → ["O", "gato", "dormiu"]                  │
+│    IDs: [87, 5432, 9103]                                │
 │    n_enc = 3 tokens                                        │
 └──────────────────────┬───────────────────────────────────┘
                        ▼
 ┌──────────────────────────────────────────────────────────┐
 │ 2. EMBEDDINGS + POSITIONAL ENCODING                       │
-│    ID 2456 → E[2456] × √512 + PE(0) → vetor 512 dims      │
+│    ID 87 → E[87] × √512 + PE(0) → vetor 512 dims      │
 │    ID 5432 → E[5432] × √512 + PE(1) → vetor 512 dims      │
-│    ID 8871 → E[8871] × √512 + PE(2) → vetor 512 dims      │
+│    ID 9103 → E[9103] × √512 + PE(2) → vetor 512 dims      │
 │    Resultado: matriz 3×512 → entra no encoder              │
 └──────────────────────┬───────────────────────────────────┘
                        ▼
 ┌──────────────────────────────────────────────────────────┐
 │ 3. ENCODER (6 camadas × 2 sub-camadas)                    │
 │    Cada camada: Self-Attention (8 cab, sem mascara) + FFN │
-│    "sat" descobre que seu sujeito é "The cat"              │
+│    "dormiu" descobre que seu sujeito e "O gato"            │
 │    Saida Z_enc: matriz 3×512 (CONSTANTE, usada abaixo)     │
 └──────────────────────┬───────────────────────────────────┘
                        ▼
@@ -1688,10 +1688,10 @@ Adam: $\beta_1=0.9,\; \beta_2=0.98,\; \varepsilon=10^{-9}$ &nbsp;|&nbsp; Batch: 
 │    Gera 1 token por vez. Cada token alimenta a proxima     │
 │    iteracao. Z_enc é FIXO — o encoder ja terminou.         │
 │                                                           │
-│    Iter 1: ["&lt;s&gt;"]              → gera "O"          │
-│    Iter 2: ["&lt;s&gt;", "O"]         → gera "gato"       │
-│    Iter 3: ["&lt;s&gt;","O","gato"]   → gera "sentou"     │
-│    Iter 4: [... "sentou"]            → gera "&lt;/s&gt;"  │
+│    Iter 1: ["&lt;s&gt;"]                   → gera "no"      │
+│    Iter 2: ["&lt;s&gt;", "no"]             → gera "telhado" │
+│    Iter 3: ["&lt;s&gt;","no","telhado"]    → gera "quente"  │
+│    Iter 4: [... "quente"]                 → gera "&lt;/s&gt;"  │
 │                                                           │
 │    A cada iteracao, o decoder faz:                         │
 │    1. Masked Self-Attn → "o que ja gerei?"                │
@@ -1699,76 +1699,76 @@ Adam: $\beta_1=0.9,\; \beta_2=0.98,\; \varepsilon=10^{-9}$ &nbsp;|&nbsp; Batch: 
 │    3. FFN → Softmax → proximo token                       │
 └──────────────────────┬───────────────────────────────────┘
                        ▼
-                  "O gato sentou"</code></pre></div>
+                  "no telhado quente"</code></pre></div>
 
-<h4>Encoder — O Que Acontece com "sat"?</h4>
+<h4>Encoder — O Que Acontece com "dormiu"?</h4>
 <p>Na self-attention do encoder, cada token atende a TODOS os outros. A matriz de atenção para a frase de 3 tokens:</p>
 <div class="code-block"><span class="lang-tag">Pesos de atenção no encoder (3×3, sem máscara)</span>
-<pre><code>         The   cat   sat
-The    [0.4   0.3   0.3 ]  ← "The" divide atenção entre todos
-cat    [0.2   0.5   0.3 ]  ← "cat" foca 50% em si mesmo
-sat    [0.5   0.4   0.1 ]  ← "sat" foca 50% em "The" (descobre o sujeito!)</code></pre></div>
-<p><strong>"sat" aprende que "The" é seu sujeito</strong> — isso é a mágica da self-attention. Após 6 camadas, Z_enc contém vetores profundamente contextualizados.</p>
+<pre><code>          O    gato   dormiu
+O      [0.4   0.3    0.3  ]  ← "O" divide atenção entre todos
+gato   [0.3   0.5    0.2  ]  ← "gato" foca 50% em si mesmo
+dormiu [0.5   0.4    0.1  ]  ← "dormiu" foca 50% em "O gato" (descobre o sujeito!)</code></pre></div>
+<p><strong>"dormiu" aprende que "O gato" é seu sujeito</strong> — isso é a mágica da self-attention. Após 6 camadas, Z_enc contém vetores profundamente contextualizados.</p>
 
 <h4>Decoder — Loop Auto-Regressivo em Detalhe</h4>
 <p>O decoder começa com o token <code>&lt;s&gt;</code> (start). A cada iteração, o token gerado é <strong>auto-alimentado</strong> como entrada da próxima.</p>
 
-<div class="code-block"><span class="lang-tag">Iteração 1 — Gerando "O"</span>
+<div class="code-block"><span class="lang-tag">Iteração 1 — Gerando "no"</span>
 <pre><code>Entrada: ["&lt;s&gt;"]  (1 token)
 
 Masked Self-Attention: so tem 1 token → atende 100% a si mesmo
 
 Cross-Attention (onde a magica acontece):
   Q("&lt;s&gt;") pergunta: "qual parte da entrada e relevante para comecar?"
-  Pesos sobre Z_enc: The: 0.60  cat: 0.25  sat: 0.15
-  → "The" e o mais relevante para o inicio da traducao
+  Pesos sobre Z_enc: O: 0.45  gato: 0.35  dormiu: 0.20
+  → "O gato" (sujeito) e o mais relevante para iniciar a continuacao
 
 FFN → Projecao Linear (512→37K) → Softmax
-  "O"    → 0.23  ← MAIOR
-  "A"    → 0.08
-  "Um"   → 0.05</code></pre></div>
+  "no"      → 0.28  ← MAIOR
+  "em"      → 0.10
+  "sobre"   → 0.06</code></pre></div>
 
-<div class="code-block"><span class="lang-tag">Iteração 2 — Gerando "gato"</span>
-<pre><code>Entrada: ["&lt;s&gt;", "O"]  (2 tokens — "O" foi auto-alimentado!)
+<div class="code-block"><span class="lang-tag">Iteração 2 — Gerando "telhado"</span>
+<pre><code>Entrada: ["&lt;s&gt;", "no"]  (2 tokens — "no" foi auto-alimentado!)
 
 Masked Self-Attention:
   "&lt;s&gt;" ve ["&lt;s&gt;"]
-  "O"  ve ["&lt;s&gt;", "O"]      ← mascara: nao pode ver "gato" (futuro)
+  "no" ve ["&lt;s&gt;", "no"]      ← mascara: nao pode ver "telhado" (futuro)
 
 Cross-Attention:
-  Q("O") pergunta: "qual parte da entrada eu represento?"
-  Pesos sobre Z_enc: The: 0.65  cat: 0.20  sat: 0.15
-  → "The" = "O"! O modelo aprendeu alinhamento bilingue sozinho
+  Q("no") pergunta: "qual parte da entrada define ONDE?"
+  Pesos sobre Z_enc: O: 0.30  gato: 0.30  dormiu: 0.40
+  → "dormiu" (verbo) e "O gato" (sujeito) definem o contexto do lugar
 
-Softmax → "gato" (0.31) vence "cao" (0.12)</code></pre></div>
+Softmax → "telhado" (0.24) vence "sofa" (0.11)</code></pre></div>
 
-<div class="code-block"><span class="lang-tag">Iteração 3 — Gerando "sentou"</span>
-<pre><code>Entrada: ["&lt;s&gt;", "O", "gato"]  (3 tokens)
+<div class="code-block"><span class="lang-tag">Iteração 3 — Gerando "quente"</span>
+<pre><code>Entrada: ["&lt;s&gt;", "no", "telhado"]  (3 tokens)
 
 Cross-Attention:
-  Q("gato") pergunta → K_enc responde: "cat"!
-  Pesos: The: 0.15  cat: 0.70  sat: 0.15
-  → "cat" = "gato"! Alinhamento bilingue novamente
+  Q("telhado") pergunta → Z_enc responde com o contexto da cena
+  Pesos: O: 0.25  gato: 0.35  dormiu: 0.40
+  → "gato" + "dormiu" = cena de gato dormindo → telhado quente?
 
-Softmax → "sentou" (0.27) vence "esta" (0.10)</code></pre></div>
+Softmax → "quente" (0.22) vence "frio" (0.09)</code></pre></div>
 
 <div class="code-block"><span class="lang-tag">Iteração 4 — Fim da geração</span>
-<pre><code>Entrada: ["&lt;s&gt;", "O", "gato", "sentou"]  (4 tokens)
+<pre><code>Entrada: ["&lt;s&gt;", "no", "telhado", "quente"]  (4 tokens)
 
 Cross-Attention:
-  Q("sentou") pergunta → K_enc responde: "sat"!
-  Pesos: The: 0.30  cat: 0.25  sat: 0.45
+  Q("quente") pergunta → "ja terminei a descricao?"
+  Pesos: O: 0.30  gato: 0.30  dormiu: 0.40
 
-Softmax → "&lt;/s&gt;" (0.42) — token de fim. Geracao concluida.</code></pre></div>
+Softmax → "&lt;/s&gt;" (0.38) — token de fim. Geracao concluida.</code></pre></div>
 
 <h4>O Que Este Exemplo Revela</h4>
 <table>
   <tr><th>Token gerado</th><th>Atende mais a...</th><th>Tipo de relação</th></tr>
-  <tr><td>"O"</td><td>"The" (0.60)</td><td>Tradução direta (artigo → artigo)</td></tr>
-  <tr><td>"gato"</td><td>"cat" (0.70)</td><td>Tradução direta (substantivo)</td></tr>
-  <tr><td>"sentou"</td><td>"sat" (0.45) + "The cat" (0.55)</td><td>Tradução + concordância com sujeito</td></tr>
+  <tr><td>"no"</td><td>"dormiu" (0.40) + "O gato" (0.60)</td><td>Preposição ligada ao verbo e sujeito</td></tr>
+  <tr><td>"telhado"</td><td>"dormiu" (0.40) + "gato" (0.30)</td><td>Substantivo-lugar ligado ao verbo</td></tr>
+  <tr><td>"quente"</td><td>"dormiu" (0.40) + "gato" (0.35)</td><td>Adjetivo ligado ao contexto da cena</td></tr>
 </table>
-<p><strong>A cross-attention aprendeu alinhamento bilíngue SEM supervisão explícita.</strong> Ninguém disse ao modelo "The = O" ou "cat = gato" — ele descobriu sozinho durante o treino, apenas otimizando a função de perda.</p>
+<p><strong>A cross-attention aprendeu a conectar a geração com o contexto relevante SEM supervisão explícita.</strong> Ninguém disse ao modelo que "dormiu" pede um lugar ou que "telhado" combina com "gato" — ele descobriu sozinho durante o treino, apenas otimizando a função de perda.</p>
 
 <h4>3 Coisas Para Gravar</h4>
 <ol>
