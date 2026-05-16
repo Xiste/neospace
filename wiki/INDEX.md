@@ -1,7 +1,7 @@
 # 📚 Wiki Neospace — Índice de Conhecimento
 
 ## Progresso Geral
-- Tópicos estudados: 11 de ~25
+- Tópicos estudados: 12 de ~25
 - 🔴 Não estudado | 🟡 Em estudo | 🟢 Dominado
 
 ---
@@ -16,6 +16,7 @@
 - [x] [Positional Encoding](POSITIONAL_ENCODING.md) 🟢
 - [x] [Feed-Forward + Residual + LayerNorm](FEED_FORWARD_RESIDUAL_LAYERNORM.md) 🟢
 - [x] [Transformer — Arquitetura Completa](TRANSFORMER_COMPLETO.md) 🟢
+- [x] [Pipeline Completa — Exemplo Passo a Passo](PIPELINE_COMPLETA.md) 🟢
 
 ## Técnicas de Eficiência de Atenção
 - [x] [Flash Attention](FLASH_ATTENTION.md) 🟢

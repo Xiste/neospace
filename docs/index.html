@@ -307,6 +307,7 @@ MathJax = {
       <li><a href="#positional-encoding" onclick="closeSidebar()"><span class="status-dot done"></span>Positional Encoding</a></li>
       <li><a href="#ffn-residual" onclick="closeSidebar()"><span class="status-dot done"></span>FFN + Residual + LayerNorm</a></li>
       <li><a href="#transformer-completo" onclick="closeSidebar()"><span class="status-dot done"></span>Transformer Completo</a></li>
+        <li><a href="#pipeline-completa" onclick="closeSidebar()"><span class="status-dot done"></span>Pipeline Completa (Exemplo)</a></li>
     </ul>
 
     <div class="sidebar-section"><h2>Eficiência de Atenção</h2></div>
@@ -367,8 +368,8 @@ MathJax = {
     <p>Uma jornada progressiva pelas técnicas que transformaram o treinamento de modelos de linguagem — desde os fundamentos matemáticos até as arquiteturas que rodam em milhares de GPUs. Abordagem linear: um conceito por vez, do básico ao avançado.</p>
     <div class="hero-stats">
       <div class="hero-stat"><div class="num">25</div><div class="label">Tópicos na trilha</div></div>
-      <div class="hero-stat"><div class="num">11</div><div class="label">Dominados</div></div>
-      <div class="hero-stat"><div class="num">44%</div><div class="label">Progresso</div></div>
+      <div class="hero-stat"><div class="num">12</div><div class="label">Dominados</div></div>
+      <div class="hero-stat"><div class="num">48%</div><div class="label">Progresso</div></div>
       <div class="hero-stat"><div class="num" id="quizGlobalPct">0%</div><div class="label">Quiz Respondido</div></div>
     </div>
   </section>
@@ -1643,6 +1644,151 @@ Adam: $\beta_1=0.9,\; \beta_2=0.98,\; \varepsilon=10^{-9}$ &nbsp;|&nbsp; Batch: 
       </div>
     </article>
 
+
+    <!-- Pipeline Completa -->
+    <article class="topic" id="pipeline-completa">
+      <div class="topic-marker done"></div>
+      <div class="topic-card">
+        <div class="topic-header">
+          <h3>9. Pipeline Completa — Exemplo "The cat sat" → "O gato sentou"</h3>
+          <span class="topic-badge done">🟢 Dominado</span>
+        </div>
+        <div class="topic-body">
+<h4>Visão Geral</h4>
+<p>Um exemplo concreto percorrendo a pipeline INTEIRA do Transformer, da tokenização até o último token gerado pelo decoder.</p>
+
+<div class="code-block"><span class="lang-tag">Pipeline completa — "The cat sat" → "O gato sentou"</span>
+<pre><code>"The cat sat"
+     │
+     ▼
+┌──────────────────────────────────────────────────────────┐
+│ 1. TOKENIZAÇÃO (BPE)                                      │
+│    "The cat sat" → ["The", "cat", "sat"]                  │
+│    IDs: [2456, 5432, 8871]                                │
+│    n_enc = 3 tokens                                        │
+└──────────────────────┬───────────────────────────────────┘
+                       ▼
+┌──────────────────────────────────────────────────────────┐
+│ 2. EMBEDDINGS + POSITIONAL ENCODING                       │
+│    ID 2456 → E[2456] × √512 + PE(0) → vetor 512 dims      │
+│    ID 5432 → E[5432] × √512 + PE(1) → vetor 512 dims      │
+│    ID 8871 → E[8871] × √512 + PE(2) → vetor 512 dims      │
+│    Resultado: matriz 3×512 → entra no encoder              │
+└──────────────────────┬───────────────────────────────────┘
+                       ▼
+┌──────────────────────────────────────────────────────────┐
+│ 3. ENCODER (6 camadas × 2 sub-camadas)                    │
+│    Cada camada: Self-Attention (8 cab, sem mascara) + FFN │
+│    "sat" descobre que seu sujeito é "The cat"              │
+│    Saida Z_enc: matriz 3×512 (CONSTANTE, usada abaixo)     │
+└──────────────────────┬───────────────────────────────────┘
+                       ▼
+┌──────────────────────────────────────────────────────────┐
+│ 4. DECODER — LOOP AUTO-REGRESSIVO (3 sub-camadas)         │
+│    Gera 1 token por vez. Cada token alimenta a proxima     │
+│    iteracao. Z_enc é FIXO — o encoder ja terminou.         │
+│                                                           │
+│    Iter 1: ["&lt;s&gt;"]              → gera "O"          │
+│    Iter 2: ["&lt;s&gt;", "O"]         → gera "gato"       │
+│    Iter 3: ["&lt;s&gt;","O","gato"]   → gera "sentou"     │
+│    Iter 4: [... "sentou"]            → gera "&lt;/s&gt;"  │
+│                                                           │
+│    A cada iteracao, o decoder faz:                         │
+│    1. Masked Self-Attn → "o que ja gerei?"                │
+│    2. Cross-Attention  → "qual parte da entrada importa?" │
+│    3. FFN → Softmax → proximo token                       │
+└──────────────────────┬───────────────────────────────────┘
+                       ▼
+                  "O gato sentou"</code></pre></div>
+
+<h4>Encoder — O Que Acontece com "sat"?</h4>
+<p>Na self-attention do encoder, cada token atende a TODOS os outros. A matriz de atenção para a frase de 3 tokens:</p>
+<div class="code-block"><span class="lang-tag">Pesos de atenção no encoder (3×3, sem máscara)</span>
+<pre><code>         The   cat   sat
+The    [0.4   0.3   0.3 ]  ← "The" divide atenção entre todos
+cat    [0.2   0.5   0.3 ]  ← "cat" foca 50% em si mesmo
+sat    [0.5   0.4   0.1 ]  ← "sat" foca 50% em "The" (descobre o sujeito!)</code></pre></div>
+<p><strong>"sat" aprende que "The" é seu sujeito</strong> — isso é a mágica da self-attention. Após 6 camadas, Z_enc contém vetores profundamente contextualizados.</p>
+
+<h4>Decoder — Loop Auto-Regressivo em Detalhe</h4>
+<p>O decoder começa com o token <code>&lt;s&gt;</code> (start). A cada iteração, o token gerado é <strong>auto-alimentado</strong> como entrada da próxima.</p>
+
+<div class="code-block"><span class="lang-tag">Iteração 1 — Gerando "O"</span>
+<pre><code>Entrada: ["&lt;s&gt;"]  (1 token)
+
+Masked Self-Attention: so tem 1 token → atende 100% a si mesmo
+
+Cross-Attention (onde a magica acontece):
+  Q("&lt;s&gt;") pergunta: "qual parte da entrada e relevante para comecar?"
+  Pesos sobre Z_enc: The: 0.60  cat: 0.25  sat: 0.15
+  → "The" e o mais relevante para o inicio da traducao
+
+FFN → Projecao Linear (512→37K) → Softmax
+  "O"    → 0.23  ← MAIOR
+  "A"    → 0.08
+  "Um"   → 0.05</code></pre></div>
+
+<div class="code-block"><span class="lang-tag">Iteração 2 — Gerando "gato"</span>
+<pre><code>Entrada: ["&lt;s&gt;", "O"]  (2 tokens — "O" foi auto-alimentado!)
+
+Masked Self-Attention:
+  "&lt;s&gt;" ve ["&lt;s&gt;"]
+  "O"  ve ["&lt;s&gt;", "O"]      ← mascara: nao pode ver "gato" (futuro)
+
+Cross-Attention:
+  Q("O") pergunta: "qual parte da entrada eu represento?"
+  Pesos sobre Z_enc: The: 0.65  cat: 0.20  sat: 0.15
+  → "The" = "O"! O modelo aprendeu alinhamento bilingue sozinho
+
+Softmax → "gato" (0.31) vence "cao" (0.12)</code></pre></div>
+
+<div class="code-block"><span class="lang-tag">Iteração 3 — Gerando "sentou"</span>
+<pre><code>Entrada: ["&lt;s&gt;", "O", "gato"]  (3 tokens)
+
+Cross-Attention:
+  Q("gato") pergunta → K_enc responde: "cat"!
+  Pesos: The: 0.15  cat: 0.70  sat: 0.15
+  → "cat" = "gato"! Alinhamento bilingue novamente
+
+Softmax → "sentou" (0.27) vence "esta" (0.10)</code></pre></div>
+
+<div class="code-block"><span class="lang-tag">Iteração 4 — Fim da geração</span>
+<pre><code>Entrada: ["&lt;s&gt;", "O", "gato", "sentou"]  (4 tokens)
+
+Cross-Attention:
+  Q("sentou") pergunta → K_enc responde: "sat"!
+  Pesos: The: 0.30  cat: 0.25  sat: 0.45
+
+Softmax → "&lt;/s&gt;" (0.42) — token de fim. Geracao concluida.</code></pre></div>
+
+<h4>O Que Este Exemplo Revela</h4>
+<table>
+  <tr><th>Token gerado</th><th>Atende mais a...</th><th>Tipo de relação</th></tr>
+  <tr><td>"O"</td><td>"The" (0.60)</td><td>Tradução direta (artigo → artigo)</td></tr>
+  <tr><td>"gato"</td><td>"cat" (0.70)</td><td>Tradução direta (substantivo)</td></tr>
+  <tr><td>"sentou"</td><td>"sat" (0.45) + "The cat" (0.55)</td><td>Tradução + concordância com sujeito</td></tr>
+</table>
+<p><strong>A cross-attention aprendeu alinhamento bilíngue SEM supervisão explícita.</strong> Ninguém disse ao modelo "The = O" ou "cat = gato" — ele descobriu sozinho durante o treino, apenas otimizando a função de perda.</p>
+
+<h4>3 Coisas Para Gravar</h4>
+<ol>
+  <li><strong>Z_enc é FIXO:</strong> o encoder processa a entrada 1 vez. O decoder consulta essa mesma matriz em TODAS as iterações</li>
+  <li><strong>Auto-alimentação:</strong> cada token gerado vira entrada da próxima iteração. A sequência do decoder CRESCE a cada passo</li>
+  <li><strong>Cross-Attention é a ponte:</strong> Q muda a cada token (pergunta diferente), mas K,V são sempre os mesmos (Z_enc fixo)</li>
+</ol>
+
+<h4>Pré-requisitos</h4>
+<p>Todos os fundamentos na ordem: Tokenização → Embeddings → Self-Attention → Multi-Head → Encoder/Decoder → Positional Encoding → FFN+Residual → Transformer Completo</p>
+
+<h4>Conexões</h4>
+<ul>
+  <li><strong>Treino vs Inferência:</strong> no treino, o decoder recebe a saída completa de uma vez (teacher forcing + máscara). Na inferência, é auto-regressivo como este exemplo</li>
+  <li><strong>KV-cache:</strong> na prática, K e V do decoder são armazenados para não recalcular a cada iteração — essencial para inferência rápida</li>
+  <li><strong><a href="#glossario-temperatura">Temperatura</a>:</strong> controla a criatividade na escolha do próximo token (T=1 → softmax padrão; T<1 → mais determinístico)</li>
+</ul>
+        </div>
+      </div>
+    </article>
 
     <div class="section-divider" id="sec-atencao"><h2>Técnicas de Eficiência de Atenção</h2></div>
 
