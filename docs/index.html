@@ -203,6 +203,18 @@
     <p>Estudo progressivo de otimização de treinamento de IA</p>
   </div>
   <nav>
+    <div class="sidebar-section"><h2>Fundamentos do Transformer</h2></div>
+    <ul class="sidebar-nav">
+      <li><a href="#tokenizacao" onclick="closeSidebar()"><span class="status-dot done"></span>Tokenização (BPE)</a></li>
+      <li><a href="#embeddings" onclick="closeSidebar()"><span class="status-dot done"></span>Embeddings</a></li>
+      <li><a href="#self-attention" onclick="closeSidebar()"><span class="status-dot done"></span>Self-Attention</a></li>
+      <li><a href="#multi-head" onclick="closeSidebar()"><span class="status-dot done"></span>Multi-Head Attention</a></li>
+      <li><a href="#tipos-atencao" onclick="closeSidebar()"><span class="status-dot done"></span>3 Tipos de Atenção</a></li>
+      <li><a href="#positional-encoding" onclick="closeSidebar()"><span class="status-dot done"></span>Positional Encoding</a></li>
+      <li><a href="#ffn-residual" onclick="closeSidebar()"><span class="status-dot done"></span>FFN + Residual + LayerNorm</a></li>
+      <li><a href="#transformer-completo" onclick="closeSidebar()"><span class="status-dot done"></span>Transformer Completo</a></li>
+    </ul>
+
     <div class="sidebar-section"><h2>Eficiência de Atenção</h2></div>
     <ul class="sidebar-nav">
       <li><a href="#flash-attention" onclick="closeSidebar()"><span class="status-dot done"></span>Flash Attention</a></li>
@@ -242,7 +254,7 @@
 
     <div class="sidebar-section"><h2>Papers Importantes</h2></div>
     <ul class="sidebar-nav">
-      <li><a href="#paper-attention" onclick="closeSidebar()"><span class="status-dot pending"></span>Attention Is All You Need</a></li>
+      <li><a href="#paper-attention" onclick="closeSidebar()"><span class="status-dot done"></span>Attention Is All You Need</a></li>
       <li><a href="#paper-flash" onclick="closeSidebar()"><span class="status-dot done"></span>Flash Attention (2022)</a></li>
       <li><a href="#paper-lora" onclick="closeSidebar()"><span class="status-dot pending"></span>LoRA (2021)</a></li>
       <li><a href="#paper-deepseek" onclick="closeSidebar()"><span class="status-dot pending"></span>DeepSeek V4 (2026)</a></li>
@@ -260,15 +272,522 @@
     <h2>Evolução da Otimização de IA</h2>
     <p>Uma jornada progressiva pelas técnicas que transformaram o treinamento de modelos de linguagem — desde os fundamentos matemáticos até as arquiteturas que rodam em milhares de GPUs. Abordagem linear: um conceito por vez, do básico ao avançado.</p>
     <div class="hero-stats">
-      <div class="hero-stat"><div class="num">17</div><div class="label">Tópicos na trilha</div></div>
-      <div class="hero-stat"><div class="num">1</div><div class="label">Dominados</div></div>
-      <div class="hero-stat"><div class="num">5.9%</div><div class="label">Progresso</div></div>
+      <div class="hero-stat"><div class="num">25</div><div class="label">Tópicos na trilha</div></div>
+      <div class="hero-stat"><div class="num">8</div><div class="label">Dominados</div></div>
+      <div class="hero-stat"><div class="num">32%</div><div class="label">Progresso</div></div>
     </div>
   </section>
 
   <section class="timeline">
 
     <!-- ==================== EFICIÊNCIA DE ATENÇÃO ==================== -->
+    
+    <!-- ==================== FUNDAMENTOS DO TRANSFORMER ==================== -->
+    <div class="section-divider" id="sec-transformer"><h2>Fundamentos do Transformer (Attention Is All You Need)</h2></div>
+
+    <!-- Tokenização -->
+    <article class="topic" id="tokenizacao">
+      <div class="topic-marker done"></div>
+      <div class="topic-card">
+        <div class="topic-header">
+          <h3>1. Tokenização — Byte-Pair Encoding & Subword Tokenization</h3>
+          <span class="topic-badge done">🟢 Dominado</span>
+        </div>
+        <div class="topic-body">
+
+<h4>O Problema</h4>
+<p>Como representar texto para uma rede neural de forma eficiente, sem vocabulários gigantes e sem perder palavras raras ou desconhecidas?</p>
+
+<h4>Contexto Histórico</h4>
+<ul>
+  <li><strong>Word-level:</strong> cada palavra = um ID. Vocabulário enorme, palavras desconhecidas viram <code>&lt;UNK&gt;</code></li>
+  <li><strong>Character-level:</strong> cada caractere = um ID. Vocabulário pequeno, mas sequências ficam longas demais</li>
+  <li><strong>Solução (2016):</strong> Subword tokenization (BPE de Sennrich et al.) — meio-termo que quebra palavras em pedaços frequentes</li>
+</ul>
+
+<h4>Intuição Central</h4>
+<p>Se você conhece os pedaços <strong>"gat" + "inho"</strong>, entende "gatinho" mesmo sem nunca ter visto essa palavra. O BPE extrai esses pedaços automaticamente do corpus.</p>
+<p><strong>Analogia do LEGO:</strong> word-level são peças únicas rígidas, character-level são pinos minúsculos, subword são peças de tamanho certo que se encaixam para formar qualquer palavra.</p>
+
+<h4>Como Funciona</h4>
+<ol>
+  <li>Começa com todas as palavras quebradas em caracteres</li>
+  <li>Conta todos os pares de tokens adjacentes no corpus</li>
+  <li>Funde o par mais frequente em um novo token</li>
+  <li>Repete até atingir o tamanho de vocabulário desejado (ex: 37.000)</li>
+</ol>
+<p>Exemplo: "gato gato gatos" → <code>g a t o</code> → funde "ga" → funde "gat" → vocabulário final inclui "gat", permitindo tokenizar "gatos" como <code>gat o s</code>.</p>
+
+<h4>Impacto Prático</h4>
+<table>
+  <tr><th>Modelo</th><th>Método</th><th>Vocabulário</th></tr>
+  <tr><td>Transformer (EN→DE)</td><td>BPE</td><td>~37.000 tokens</td></tr>
+  <tr><td>Transformer (EN→FR)</td><td>Word-Piece</td><td>~32.000 tokens</td></tr>
+  <tr><td>GPT-3</td><td>BPE</td><td>~50.000 tokens</td></tr>
+  <tr><td>LLaMA</td><td>BPE</td><td>~32.000 tokens</td></tr>
+</table>
+<p>Tokenização é pré-processamento em CPU, não afeta tempo de GPU.</p>
+
+<h4>Conexões</h4>
+<ul>
+  <li><strong>Embeddings:</strong> cada token (ID inteiro) é convertido em vetor denso</li>
+  <li><strong>Vocabulário × d_model:</strong> define o tamanho da matriz de embedding</li>
+  <li><strong>Weight tying:</strong> Transformer compartilha pesos entre embedding de entrada e saída</li>
+</ul>
+
+<h4>Perguntas de Revisão</h4>
+<ol>
+  <li>Por que não usamos palavras inteiras como tokens?</li>
+  <li>Qual a diferença entre tokenização word-level, character-level e subword?</li>
+  <li>Explique o algoritmo BPE com suas próprias palavras</li>
+  <li>Por que "gatinho" e "gatos" compartilham tokens no BPE?</li>
+  <li>O que acontece se o vocabulário for muito pequeno? E muito grande?</li>
+</ol>
+
+        </div>
+      </div>
+    </article>
+
+    <!-- Embeddings -->
+    <article class="topic" id="embeddings">
+      <div class="topic-marker done"></div>
+      <div class="topic-card">
+        <div class="topic-header">
+          <h3>2. Embeddings — De Inteiros a Vetores com Significado</h3>
+          <span class="topic-badge done">🟢 Dominado</span>
+        </div>
+        <div class="topic-body">
+
+<h4>O Problema</h4>
+<p>Como representar tokens (inteiros) como vetores densos que capturem significado semântico, permitindo que palavras similares tenham representações similares?</p>
+
+<h4>Contexto Histórico</h4>
+<ul>
+  <li><strong>One-hot encoding (pré-2013):</strong> vocabulário de 37K = vetores de 37K dimensões com um único 1. Distâncias sem sentido entre palavras</li>
+  <li><strong>Word2Vec (Mikolov et al., 2013):</strong> vetores densos de ~300 dimensões capturam relações como <code>rei - homem + mulher ≈ rainha</code></li>
+  <li><strong>Transformer (2017):</strong> embeddings aprendidos de 512 dimensões, com weight tying e fator de escala √d_model</li>
+</ul>
+
+<h4>Intuição Central</h4>
+<p>Em vez de listar todas as palavras do mundo (one-hot), descreva uma palavra por características abstratas: tom emocional, tipo gramatical, domínio semântico. 512 dimensões bastam para capturar esses aspectos.</p>
+<p><strong>Analogia:</strong> Ficha de biblioteca com 512 campos (gênero, tema, época, dificuldade...) vs. uma prateleira exclusiva por livro.</p>
+
+<h4>Matemática</h4>
+<ul>
+  <li><strong>Matriz de embedding:</strong> E ∈ ℝ^{|V| × d_model}</li>
+  <li><strong>Lookup:</strong> embedding(token) = E[t_id] × √d_model</li>
+  <li><strong>Inicialização:</strong> E_ij ~ N(0, 1/d_model)</li>
+  <li><strong>Weight tying:</strong> mesma E usada no encoder, decoder e projeção pré-softmax</li>
+</ul>
+
+<h4>Impacto Prático</h4>
+<ul>
+  <li>Parâmetros: 37K × 512 = ~19M floats ≈ 76 MB (float32)</li>
+  <li>GPT-3: 50K × 12.288 = 614M parâmetros ≈ 2.5 GB só nos embeddings</li>
+  <li>Lookup é O(1) por token — extremamente rápida na GPU</li>
+</ul>
+
+<h4>Conexões</h4>
+<ul>
+  <li><strong>Positional Encoding:</strong> soma-se ao embedding para injetar posição</li>
+  <li><strong>Self-Attention:</strong> opera sobre os vetores de embedding</li>
+  <li><strong>Weight tying:</strong> reduz parâmetros e força consistência entrada-saída</li>
+</ul>
+
+<h4>Perguntas de Revisão</h4>
+<ol>
+  <li>O que é um embedding e por que ele é melhor que one-hot encoding?</li>
+  <li>Por que o Transformer multiplica os embeddings por √d_model?</li>
+  <li>O que é weight tying e por que ele é usado?</li>
+  <li>Quantos parâmetros tem a matriz de embedding para |V|=37K e d_model=512?</li>
+  <li>Por que a inicialização dos embeddings importa?</li>
+</ol>
+
+        </div>
+      </div>
+    </article>
+
+    <!-- Self-Attention -->
+    <article class="topic" id="self-attention">
+      <div class="topic-marker done"></div>
+      <div class="topic-card">
+        <div class="topic-header">
+          <h3>3. Self-Attention — O Coração do Transformer</h3>
+          <span class="topic-badge done">🟢 Dominado</span>
+        </div>
+        <div class="topic-body">
+
+<h4>O Problema</h4>
+<p>Como permitir que cada token de uma sequência "olhe" diretamente para todos os outros tokens em O(1) passos sequenciais, sem a degradação de informação das RNNs?</p>
+
+<h4>Contexto Histórico</h4>
+<ul>
+  <li><strong>RNN (pré-2017):</strong> cada token via apenas o estado oculto do anterior. Informação se degradava. Impossível paralelizar</li>
+  <li><strong>Atenção de Bahdanau (2014):</strong> atenção entre encoder e decoder, mas ainda com RNN processando sequencialmente</li>
+  <li><strong>Transformer (2017):</strong> remove RNNs completamente. Cada token atende a todos os outros em O(1) passos</li>
+</ul>
+
+<h4>Intuição Central</h4>
+<p>Imagine uma sala de aula onde cada aluno (token) tem uma <strong>Query</strong> ("o que eu quero saber?"), uma <strong>Key</strong> ("o que eu ofereço?") e um <strong>Value</strong> ("qual é minha informação?"). Cada aluno compara sua Query com as Keys de todos, e faz uma média ponderada dos Values de quem for mais compatível.</p>
+<p><strong>Analogia:</strong> Busca em banco de dados — Query é sua pergunta, Key é o índice, Value é o conteúdo retornado. Mas aqui tudo é "soft" (ponderado e diferenciável).</p>
+
+<h4>Matemática</h4>
+<p>A equação completa:</p>
+<div class="code-block"><span class="lang-tag">Scaled Dot-Product Attention</span>
+<pre><code>Attention(Q, K, V) = softmax(Q·Kᵀ / √d_k)·V
+
+Onde:
+  Q = X·W_Q   (n × d_k)
+  K = X·W_K   (n × d_k)
+  V = X·W_V   (n × d_v)
+  d_k = 64 (para h=8 cabeças)</code></pre></div>
+
+<p>O fator 1/√d_k é crucial: sem ele, produtos escalares grandes saturam o softmax, matando o gradiente. Para d_k=64, divide-se por 8.</p>
+
+<h4>Impacto Prático</h4>
+<table>
+  <tr><th>Seq Len</th><th>Matriz de Atenção</th><th>Memória (float32)</th></tr>
+  <tr><td>512</td><td>262K elementos</td><td>~1 MB</td></tr>
+  <tr><td>2048</td><td>4.2M elementos</td><td>~17 MB</td></tr>
+  <tr><td>8192</td><td>67M elementos</td><td>~268 MB</td></tr>
+  <tr><td>32K</td><td>1B elementos</td><td>~4 GB</td></tr>
+</table>
+<p>Complexidade O(n²·d). O produto Q·Kᵀ é o gargalo. <strong>Flash Attention resolve isso em memória.</strong></p>
+
+<h4>Conexões</h4>
+<ul>
+  <li><strong>Multi-Head Attention:</strong> 8 atenções em paralelo</li>
+  <li><strong>Masked Self-Attention:</strong> decoder usa máscara para não ver tokens futuros</li>
+  <li><strong>Cross-Attention:</strong> decoder atende à saída do encoder</li>
+  <li><strong>Flash Attention:</strong> otimização de memória para O(n²)</li>
+</ul>
+
+<h4>Perguntas de Revisão</h4>
+<ol>
+  <li>O que significam Query, Key e Value? Dê a analogia com suas palavras</li>
+  <li>Por que dividimos QKᵀ por √d_k? O que acontece se não dividirmos?</li>
+  <li>Por que a complexidade é O(n²·d)? Qual parte domina?</li>
+  <li>O que significa um peso de atenção 0.95 na posição (i=3, j=7)?</li>
+  <li>Por que self-attention captura dependências longas melhor que RNN?</li>
+</ol>
+
+        </div>
+      </div>
+    </article>
+
+    <!-- Multi-Head Attention -->
+    <article class="topic" id="multi-head">
+      <div class="topic-marker done"></div>
+      <div class="topic-card">
+        <div class="topic-header">
+          <h3>4. Multi-Head Attention — 8 Atenções em Paralelo</h3>
+          <span class="topic-badge done">🟢 Dominado</span>
+        </div>
+        <div class="topic-body">
+
+<h4>O Problema</h4>
+<p>Uma única função de atenção precisa capturar relações sintáticas, semânticas, posicionais e de correferência simultaneamente nos mesmos 64 números — uma "média" que perde nuances.</p>
+
+<h4>Contexto Histórico</h4>
+<ul>
+  <li><strong>Atenção de Bahdanau (2014) e Luong (2015):</strong> uma única função de atenção</li>
+  <li><strong>Transformer (2017):</strong> propõe h=8 atenções em paralelo, cada uma com seus W_Q, W_K, W_V</li>
+  <li><strong>Linha A (Tabela 3):</strong> cabeça única perde 0.9 BLEU; cabeças demais também pioram → ponto ótimo em h=8</li>
+</ul>
+
+<h4>Intuição Central</h4>
+<p>Em vez de UM perito analisando a cena do crime, chame 8 especialistas: um de digitais, um de balística, um de DNA, um de documentos... Cada um olha a mesma cena com ferramentas diferentes. Depois, junte todos os laudos.</p>
+<p><strong>Analogia:</strong> Detetives especializados — cada cabeça aprende um "tipo de pergunta" diferente sobre a sequência.</p>
+
+<h4>Matemática</h4>
+<div class="code-block"><span class="lang-tag">Multi-Head Attention</span>
+<pre><code>MultiHead(Q, K, V) = Concat(head₁, ..., head_h)·W_O
+head_i = Attention(Q·W_Q_i, K·W_K_i, V·W_V_i)
+
+  h = 8 cabeças
+  d_k = d_v = d_model/h = 512/8 = 64
+  W_Q_i, W_K_i ∈ ℝ^{512×64}, W_V_i ∈ ℝ^{512×64}
+  W_O ∈ ℝ^{512×512}</code></pre></div>
+<p>O custo total é similar a 1 cabeça com dimensionalidade total: 8 × O(n²×64) = O(n²×512).</p>
+
+<h4>Impacto Prático</h4>
+<ul>
+  <li>Cabeças descobrem padrões interpretáveis sozinhas: sintaxe, correferência, adjacência</li>
+  <li>Exemplo real: "its" atende fortemente a "The Law" — correferência sem supervisão</li>
+  <li>Dropout (p=0.1) nos pesos de atenção evita dependência excessiva de uma cabeça</li>
+</ul>
+
+<h4>Conexões</h4>
+<ul>
+  <li><strong>Masked Multi-Head Attention:</strong> decoder usa máscara para impedir atenção ao futuro</li>
+  <li><strong>Cross-Attention:</strong> decoder atende à saída do encoder</li>
+  <li><strong>MQA / GQA:</strong> variações modernas que compartilham K e V entre cabeças</li>
+</ul>
+
+<h4>Perguntas de Revisão</h4>
+<ol>
+  <li>Por que usar 8 cabeças em vez de 1?</li>
+  <li>Explique por que o custo de 8 cabeças (d_k=64) é similar a 1 cabeça (d_k=512)</li>
+  <li>Qual o papel da matriz W_O?</li>
+  <li>O que uma cabeça com atenção sempre uniforme indicaria?</li>
+  <li>Por que cabeça única e cabeças demais são ambas piores que h=8?</li>
+</ol>
+
+        </div>
+      </div>
+    </article>
+
+    <!-- 3 Tipos de Atenção -->
+    <article class="topic" id="tipos-atencao">
+      <div class="topic-marker done"></div>
+      <div class="topic-card">
+        <div class="topic-header">
+          <h3>5. Os 3 Tipos de Atenção no Transformer</h3>
+          <span class="topic-badge done">🟢 Dominado</span>
+        </div>
+        <div class="topic-body">
+
+<h4>O Problema</h4>
+<p>O Transformer precisa de diferentes "regras de visibilidade" para diferentes tarefas: entender a entrada (tudo visível), gerar saída (só passado visível) e conectar entrada-saída (decoder consulta encoder).</p>
+
+<h4>Intuição Central</h4>
+<p>Um tradutor humano usa 3 operações mentais:</p>
+<ol>
+  <li><strong>Ler a frase original:</strong> conecta todas as palavras entre si para entender o significado completo</li>
+  <li><strong>Escrever a tradução:</strong> cada palavra nova só considera o que já foi escrito</li>
+  <li><strong>Consultar o original:</strong> enquanto escreve, revisita a frase fonte para garantir fidelidade</li>
+</ol>
+
+<h4>Os 3 Tipos</h4>
+<table>
+  <tr><th>Tipo</th><th>Q, K, V vêm de</th><th>Máscara?</th><th>Custo</th></tr>
+  <tr><td>Encoder Self-Attention</td><td>Todos do encoder</td><td>Não</td><td>O(n_enc²)</td></tr>
+  <tr><td>Decoder Masked Self-Attention</td><td>Todos do decoder</td><td>Triangular</td><td>O(n_dec²)</td></tr>
+  <tr><td>Cross-Attention</td><td>Q=decoder, K,V=encoder</td><td>Não</td><td>O(n_enc × n_dec)</td></tr>
+</table>
+
+<h4>Matemática</h4>
+<p><strong>Encoder Self-Attention:</strong> Attention(X_enc·W_Q, X_enc·W_K, X_enc·W_V)</p>
+<p><strong>Decoder Masked:</strong> Attention(X_dec·W_Q, X_dec·W_K, X_dec·W_V + M) onde M tem −∞ nas posições futuras</p>
+<p><strong>Cross-Attention:</strong> Attention(X_dec·W_Q, Z_enc·W_K, Z_enc·W_V)</p>
+
+<h4>Conexões</h4>
+<ul>
+  <li><strong>GPT:</strong> decoder-only (apenas masked self-attention)</li>
+  <li><strong>BERT:</strong> encoder-only (apenas self-attention sem máscara)</li>
+  <li><strong>KV-cache:</strong> otimização de inferência que armazena K e V no decoder</li>
+</ul>
+
+<h4>Perguntas de Revisão</h4>
+<ol>
+  <li>Por que o decoder precisa de máscara na self-attention?</li>
+  <li>Qual a diferença entre self-attention e cross-attention?</li>
+  <li>Por que a cross-attention NÃO tem máscara?</li>
+  <li>GPT (decoder-only) usa quais tipos de atenção? E BERT (encoder-only)?</li>
+  <li>O que aconteceria se a cross-attention usasse Q do encoder em vez do decoder?</li>
+</ol>
+
+        </div>
+      </div>
+    </article>
+
+    <!-- Positional Encoding -->
+    <article class="topic" id="positional-encoding">
+      <div class="topic-marker done"></div>
+      <div class="topic-card">
+        <div class="topic-header">
+          <h3>6. Positional Encoding — Como o Modelo Sabe a Ordem?</h3>
+          <span class="topic-badge done">🟢 Dominado</span>
+        </div>
+        <div class="topic-body">
+
+<h4>O Problema</h4>
+<p>A self-attention trata a sequência como um conjunto não-ordenado. Sem informação de posição, "A ama B" e "B ama A" produzem representações idênticas.</p>
+
+<h4>Contexto Histórico</h4>
+<ul>
+  <li><strong>RNNs:</strong> posição implícita no processamento sequencial</li>
+  <li><strong>CNNs (ConvS2S, ByteNet):</strong> posição implícita via janela de convolução</li>
+  <li><strong>Transformer (2017):</strong> precisa injetar posição explicitamente, já que removeu RNNs e CNNs</li>
+</ul>
+
+<h4>Intuição Central</h4>
+<p><strong>Analogia do relógio:</strong> ponteiro dos segundos (alta frequência), minutos (média), horas (baixa). A combinação única das posições dos 3 ponteiros codifica qualquer horário. O PE faz o mesmo com 256 "ponteiros" (pares seno/cosseno).</p>
+
+<h4>Matemática</h4>
+<div class="code-block"><span class="lang-tag">Positional Encoding — Senos e Cossenos</span>
+<pre><code>PE(pos, 2i)   = sin(pos / 10000^(2i/d_model))
+PE(pos, 2i+1) = cos(pos / 10000^(2i/d_model))
+
+  pos = 0, 1, 2, ..., n-1
+  i   = 0, 1, ..., d_model/2 - 1
+  Valores sempre em [-1, 1]</code></pre></div>
+<p>Frequências formam progressão geométrica de 2π a ~10000×2π. PE(pos+k) é função linear de PE(pos) → facilita aprendizado de posições relativas.</p>
+
+<h4>Impacto Prático</h4>
+<ul>
+  <li>PE senoidal vs. aprendido: resultados quase idênticos (Tabela 3, linha E)</li>
+  <li>Modelos modernos (GPT, LLaMA): preferem PE aprendido ou RoPE</li>
+  <li>Sem √d_model nos embeddings, o PE (±1) dominaria o sinal semântico</li>
+</ul>
+
+<h4>Conexões</h4>
+<ul>
+  <li><strong>RoPE (Rotary Position Embedding):</strong> evolução usada em LLaMA, Mistral</li>
+  <li><strong>ALiBi:</strong> alternativa sem PE explícito — viés linear na atenção</li>
+</ul>
+
+<h4>Perguntas de Revisão</h4>
+<ol>
+  <li>Por que o Transformer precisa de positional encoding?</li>
+  <li>Por que usar senos/cossenos de diferentes frequências?</li>
+  <li>Por que somar o PE ao embedding e não concatenar?</li>
+  <li>O que significa que PE(pos+k) é função linear de PE(pos)?</li>
+  <li>Por que as frequências formam progressão geométrica?</li>
+</ol>
+
+        </div>
+      </div>
+    </article>
+
+    <!-- FFN + Residual + LayerNorm -->
+    <article class="topic" id="ffn-residual">
+      <div class="topic-marker done"></div>
+      <div class="topic-card">
+        <div class="topic-header">
+          <h3>7. Feed-Forward, Conexões Residuais e LayerNorm</h3>
+          <span class="topic-badge done">🟢 Dominado</span>
+        </div>
+        <div class="topic-body">
+
+<h4>O Problema</h4>
+<p>Como empilhar 6+6 camadas sem sofrer com gradiente evanescente, e como cada token processa individualmente a informação após a atenção?</p>
+
+<h4>Contexto Histórico</h4>
+<ul>
+  <li><strong>ResNet (He et al., 2015):</strong> introduz conexões residuais (skip connections) — F(x) + x</li>
+  <li><strong>BatchNorm (Ioffe & Szegedy, 2015):</strong> normaliza ativações, mas depende do batch</li>
+  <li><strong>LayerNorm (Ba et al., 2016):</strong> normaliza por token, ideal para sequências</li>
+</ul>
+
+<h4>Intuição Central</h4>
+<p><strong>Feed-Forward:</strong> Após a reunião de equipe (atenção), cada token processa as ideias sozinho. Expande 512→2048 (rascunho), comprime 2048→512 (resumo final).</p>
+<p><strong>Conexão Residual:</strong> Em vez de reescrever do zero, faça pequenas edições: saída = SubLayer(x) + x. O "atalho" permite que o sinal pule a transformação.</p>
+<p><strong>LayerNorm:</strong> Equalizador de áudio — ajusta cada token para média 0 e desvio padrão 1. Estabiliza o treino.</p>
+
+<h4>Matemática</h4>
+<p><strong>FFN:</strong> FFN(x) = ReLU(x·W₁ + b₁)·W₂ + b₂ — W₁: 512×2048, W₂: 2048×512</p>
+<p><strong>LayerNorm:</strong> LayerNorm(x) = γ · (x - μ)/σ + β — μ e σ por token, γ e β aprendidos</p>
+
+<table>
+  <tr><th>Componente</th><th>Parâmetros</th></tr>
+  <tr><td>Multi-Head Attention (4 matrizes)</td><td>~1.05M</td></tr>
+  <tr><td>FFN (2 camadas)</td><td>~2.1M</td></tr>
+  <tr><td>2 LayerNorms</td><td>~2K</td></tr>
+  <tr><td><strong>Total por camada</strong></td><td><strong>~3.15M</strong></td></tr>
+</table>
+<p>Modelo base (12 camadas) + embeddings ≈ <strong>~65M parâmetros</strong></p>
+
+<h4>Conexões</h4>
+<ul>
+  <li><strong>Pré-norm vs. pós-norm:</strong> modelos modernos usam LayerNorm ANTES da SubLayer</li>
+  <li><strong>SwiGLU:</strong> variante moderna da FFN com ativação diferente</li>
+  <li><strong>Gradient Checkpointing:</strong> explora camadas residuais para economizar memória</li>
+</ul>
+
+<h4>Perguntas de Revisão</h4>
+<ol>
+  <li>Qual a função da conexão residual?</li>
+  <li>Por que a FFN expande para 2048 e depois contrai?</li>
+  <li>Qual a diferença entre BatchNorm e LayerNorm?</li>
+  <li>Quantos parâmetros tem o modelo base (~65M)?</li>
+  <li>Por que modelos modernos preferem pré-norm a pós-norm?</li>
+</ol>
+
+        </div>
+      </div>
+    </article>
+
+    <!-- Transformer Completo -->
+    <article class="topic" id="transformer-completo">
+      <div class="topic-marker done"></div>
+      <div class="topic-card">
+        <div class="topic-header">
+          <h3>8. Transformer — Arquitetura Completa e Treinamento</h3>
+          <span class="topic-badge done">🟢 Dominado</span>
+        </div>
+        <div class="topic-body">
+
+<h4>O Problema</h4>
+<p>Como substituir completamente RNNs e CNNs por um mecanismo puramente baseado em atenção, com melhor qualidade e menos tempo de treino?</p>
+
+<h4>Contexto Histórico</h4>
+<p>Pré-2017: estado da arte em tradução usava ensembles de RNNs. Melhor EN→DE: ~26 BLEU. O Transformer (2017) atingiu <strong>28.4 BLEU</strong> com modelo único, treinado em <strong>3.5 dias</strong> com 8 GPUs P100.</p>
+
+<h4>Arquitetura Completa</h4>
+<div class="code-block"><span class="lang-tag">Pipeline do Transformer</span>
+<pre><code>ENTRADA → Tokenização → Embedding + PE → ENCODER (6×) → DECODER (6×) → Linear + Softmax → SAÍDA
+
+Encoder: Self-Attention (8 cabeças) + FFN (512→2048→512)
+Decoder: Masked Self-Attn + Cross-Attn + FFN
+Ambos: residual + LayerNorm (pós-norm)</code></pre></div>
+
+<h4>Hiperparâmetros (Modelo Base)</h4>
+<table>
+  <tr><th>Parâmetro</th><th>Valor</th><th>Parâmetro</th><th>Valor</th></tr>
+  <tr><td>d_model</td><td>512</td><td>P_drop</td><td>0.1</td></tr>
+  <tr><td>d_ff</td><td>2048</td><td>Label smoothing</td><td>0.1</td></tr>
+  <tr><td>h (cabeças)</td><td>8</td><td>Batch</td><td>~25K tokens</td></tr>
+  <tr><td>d_k, d_v</td><td>64</td><td>Warmup</td><td>4000 steps</td></tr>
+  <tr><td>N (camadas)</td><td>6 enc + 6 dec</td><td>Training steps</td><td>100K</td></tr>
+</table>
+
+<h4>Treinamento</h4>
+<ul>
+  <li><strong>Optimizer:</strong> Adam (β₁=0.9, β₂=0.98, ε=10⁻⁹)</li>
+  <li><strong>Learning rate:</strong> warmup linear por 4000 steps, depois decaimento ∝ 1/√step</li>
+  <li><strong>Regularização:</strong> Dropout 0.1 + Label Smoothing 0.1</li>
+  <li><strong>Inferência:</strong> Beam search com tamanho 4, penalidade de comprimento α=0.6</li>
+</ul>
+
+<h4>Resultados</h4>
+<table>
+  <tr><th>Dataset</th><th>Transformer Base</th><th>Transformer Big</th><th>SoTA 2017</th></tr>
+  <tr><td>EN→DE</td><td>27.3 BLEU</td><td>28.4 BLEU</td><td>~26 BLEU</td></tr>
+  <tr><td>EN→FR</td><td>38.1 BLEU</td><td>41.0 BLEU</td><td>~40 BLEU</td></tr>
+</table>
+
+<h4>Distribuição de Parâmetros (~65M total)</h4>
+<table>
+  <tr><th>Componente</th><th>Parâmetros</th><th>%</th></tr>
+  <tr><td>Embeddings</td><td>38M</td><td>58%</td></tr>
+  <tr><td>Atenção (12 camadas)</td><td>12.6M</td><td>19%</td></tr>
+  <tr><td>FFN (12 camadas)</td><td>25.2M</td><td>39%</td></tr>
+  <tr><td>Outros</td><td>1M</td><td>1.5%</td></tr>
+</table>
+
+<h4>Conexões</h4>
+<ul>
+  <li><strong>Flash Attention:</strong> resolve O(n²) em memória na atenção</li>
+  <li><strong>LoRA:</strong> fine-tuning eficiente congelando pesos do Transformer</li>
+  <li><strong>Quantização:</strong> reduz precisão dos pesos para economia de memória</li>
+  <li><strong>Paralelismo:</strong> distribui treino entre múltiplas GPUs</li>
+</ul>
+
+<h4>Perguntas de Revisão</h4>
+<ol>
+  <li>Quantas camadas tem o encoder e decoder? E dimensões?</li>
+  <li>Por que o treino usa warmup nos primeiros 4000 passos?</li>
+  <li>O que é label smoothing e por que melhora BLEU?</li>
+  <li>Durante a inferência, quantas vezes o encoder roda? E o decoder?</li>
+  <li>Dobrando d_model para 1024 e d_ff para 4096, quantos parâmetros teria?</li>
+</ol>
+
+        </div>
+      </div>
+    </article>
+
+
     <div class="section-divider" id="sec-atencao"><h2>Técnicas de Eficiência de Atenção</h2></div>
 
     <!-- Flash Attention -->
@@ -741,10 +1260,15 @@ Saída: O, L (logsumexp)
     <div class="section-divider" id="sec-papers"><h2>Papers Importantes</h2></div>
 
     <article class="topic" id="paper-attention">
-      <div class="topic-marker"></div>
+      <div class="topic-marker done"></div>
       <div class="topic-card">
-        <div class="topic-header"><h3>Attention Is All You Need (2017)</h3><span class="topic-badge pending">🔴 Não estudado</span></div>
-        <div class="topic-placeholder"><div class="icon">📄</div><p>Paper ainda não estudado em detalhe.</p></div>
+        <div class="topic-header">
+          <h3>Attention Is All You Need (2017) — O Paper que Revolucionou o NLP</h3>
+          <span class="topic-badge done">🟢 Estudado</span>
+        </div>
+        <div class="topic-body">
+          <p>Paper que introduziu o Transformer, eliminando RNNs e CNNs em favor de um mecanismo puramente baseado em atenção. O conteúdo completo está documentado nos 8 tópicos da seção <a href="#sec-transformer">Fundamentos do Transformer</a> acima.</p>
+        </div>
       </div>
     </article>
 
