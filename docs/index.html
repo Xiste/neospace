@@ -2467,6 +2467,29 @@ $$\text{softmax}(z_i) = \frac{e^{z_i}}{\sum_{j=1}^{n} e^{z_j}}$$
 <p><strong>Intuição:</strong> um concurso onde cada candidato recebe uma nota. A softmax transforma notas em "chance de ser escolhido" — notas maiores ganham mais chance, mas todos recebem pelo menos um pouco. Ex: notas [2, 1, 0] → softmax → [67%, 24%, 9%].</p>
 <p><strong>Onde aparece:</strong> atenção (converte scores $QK^T$ em pesos), saída do Transformer (logits → probabilidades).</p>
 
+<!-- ===== Temperatura ===== -->
+<h4 id="glossario-temperatura">🌡️ Temperatura (Temperature)</h4>
+<p>Parâmetro que controla <strong>criatividade vs determinismo</strong> na geração de texto, dividindo os logits antes do <a href="#glossario-softmax">softmax</a>:</p>
+<div class="math-block">
+$$\text{softmax}(z_i, T) = \frac{e^{z_i / T}}{\sum_j e^{z_j / T}}$$
+</div>
+<table>
+  <tr><th>T</th><th>Nome</th><th>Comportamento</th><th>Uso</th></tr>
+  <tr><td>T → 0</td><td>"Greedy"</td><td>Sempre escolhe o token mais provável</td><td>Respostas factuais, código</td></tr>
+  <tr><td>T = 0.3</td><td>"Frio"</td><td>90%+ da massa no top-3</td><td>Tradução, sumarização</td></tr>
+  <tr><td>T = 1.0</td><td>"Padrão"</td><td>Softmax original</td><td>Baseline</td></tr>
+  <tr><td>T = 1.5</td><td>"Quente"</td><td>Distribuição mais plana</td><td>Diálogo criativo</td></tr>
+  <tr><td>T = 2.0+</td><td>"Muito quente"</td><td>Tokens improváveis ganham chance</td><td>Brainstorming, poesia</td></tr>
+</table>
+<p><strong>Exemplo com logits [2.0, 1.0, 0.5]:</strong></p>
+<ul>
+  <li>T=0.5 → <code>[0.84, 0.12, 0.04]</code> — 84% no topo, quase determinístico</li>
+  <li>T=1.0 → <code>[0.67, 0.24, 0.09]</code> — softmax padrão</li>
+  <li>T=2.0 → <code>[0.46, 0.31, 0.23]</code> — distribuição plana, criativo</li>
+</ul>
+<p><strong>Analogia:</strong> temperatura é o "nervosismo" de um apresentador. Frio (T baixo) = lê o script sem desviar. Quente (T alto) = improvisa, fala coisas inesperadas.</p>
+<p><strong>Importante:</strong> temperatura só se usa na INFERÊNCIA. No treino, T=1 sempre. Quase sempre usada junto com top-p (nucleus sampling).</p>
+
 <!-- ===== BLEU ===== -->
 <h4 id="glossario-bleu">📊 BLEU (Bilingual Evaluation Understudy)</h4>
 <p>Métrica de 0 a 100 que mede a <strong>qualidade de tradução automática</strong> comparando a tradução do modelo com traduções humanas de referência. Quanto mais alto, melhor.</p>

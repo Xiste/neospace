@@ -241,6 +241,43 @@ $$\text{softmax}(z_i) = \frac{e^{z_i}}{\sum_{j=1}^{n} e^{z_j}}$$
 
 ---
 
+## Temperatura (Temperature)
+
+### O que é
+
+Temperatura é um parâmetro que controla a **criatividade vs determinismo** na geração de texto, modificando o [softmax](#softmax):
+
+$$\text{softmax}(z_i, T) = \frac{e^{z_i / T}}{\sum_j e^{z_j / T}}$$
+
+Quanto MAIOR a temperatura (T > 1), MAIS plana fica a distribuição → modelo mais criativo. Quanto MENOR (T < 1), mais concentrada → mais determinístico.
+
+| T | Nome popular | Comportamento | Uso |
+|---|-------------|---------------|-----|
+| T → 0 | "Greedy" | Sempre escolhe o token mais provável | Respostas factuais, código |
+| T = 0.3 | "Frio" | 90%+ da massa no top-3 tokens | Tradução, sumarização |
+| T = 1.0 | "Padrão" | Softmax original | Baseline |
+| T = 1.5 | "Quente" | Distribuição mais plana | Diálogo criativo |
+| T = 2.0+ | "Muito quente" | Tokens de baixa probabilidade ganham chance | Brainstorming, poesia |
+
+**Exemplo numérico com logits [2.0, 1.0, 0.5]:**
+- T=0.5: `[0.84, 0.12, 0.04]` — 84% no topo, quase determinístico
+- T=1.0: `[0.67, 0.24, 0.09]` — softmax padrão
+- T=2.0: `[0.46, 0.31, 0.23]` — distribuição plana, criativo
+
+### Intuição
+
+Temperatura é o "nervosismo" de um apresentador. Frio (T baixo) = lê o script palavra por palavra sem desviar. Quente (T alto) = improvisa, fala coisas inesperadas e às vezes sem sentido.
+
+**Analogia do café:** T baixo = café frio, você está calmo e fala exatamente o necessário. T alto = 5 xícaras de café quente, você fala tudo que vem à cabeça.
+
+### Por que aparece
+
+- **Geração de texto:** todo modelo de linguagem (GPT, LLaMA, Claude) expõe temperatura como parâmetro de inferência
+- **Top-p (nucleus sampling):** quase sempre usado JUNTO com temperatura. Temperatura achata a distribuição, top-p trunca os tokens de cauda longa
+- **Treino vs inferência:** durante o TREINO não se usa temperatura (T=1). Só na INFERÊNCIA o usuário ajusta T
+
+---
+
 ## BLEU (Bilingual Evaluation Understudy)
 
 ### O que é
