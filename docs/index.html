@@ -44,6 +44,8 @@ MathJax = {
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; display: flex; }
   a { color: var(--accent); text-decoration: none; }
   a:hover { text-decoration: underline; }
+  a.glossary-link { color: var(--accent3); border-bottom: 1px dashed var(--accent3); }
+  a.glossary-link:hover { text-decoration: none; border-bottom-style: solid; }
 
   /* Sidebar */
   .sidebar {
@@ -548,16 +550,16 @@ Operações famosas:  rei - homem + mulher ≈ rainha</code></pre></div>
 <p><strong>Analogia:</strong> One-hot = cada livro tem uma prateleira exclusiva. Embedding = cada livro tem uma ficha com 512 campos: gênero, tema, dificuldade, época... Livros similares têm fichas parecidas.</p>
 
 <h4>Matemática — Do Token ao Vetor</h4>
-<p>A <strong>matriz de embedding E</strong> tem dimensão |V| × d_model (37.000 × 512). É uma tabela de lookup:</p>
+<p>A <strong>matriz de embedding E</strong> tem dimensão $|V| \times$ <a href="#glossario-dmodel" class="glossary-link">d_model</a> (37.000 × 512). É uma tabela de lookup:</p>
 <div class="code-block"><span class="lang-tag">Embedding Lookup</span>
 <pre><code>embedding(token) = E[id_do_token]  // indexação direta, O(1)
 
 Exemplo:
   Token "cat" → ID 8912 → E[8912] → vetor de 512 floats</code></pre></div>
 
-<p><strong>O fator √d_model:</strong> o Transformer multiplica os embeddings por √512 ≈ 22.6. Por quê?</p>
+<p><strong>O fator √<a href="#glossario-dmodel" class="glossary-link">d_model</a>:</strong> o Transformer multiplica os embeddings por √512 ≈ 22.6. Por quê?</p>
 <ul>
-  <li>Embeddings são inicializados com N(0, 1/d_model) — valores pequenos</li>
+  <li>Embeddings são inicializados com $N(0, 1/$<a href="#glossario-dmodel" class="glossary-link">d_model</a>$)$ — valores pequenos</li>
   <li>Positional Encoding usa senos/cossenos entre -1 e 1</li>
   <li>Sem o fator de escala, o PE dominaria o sinal e o modelo ignoraria o conteúdo semântico no início do treino</li>
 </ul>
@@ -692,7 +694,7 @@ Resultado: "it" presta 80% de atenção em "mat", 15% em "cat"</code></pre></div
 K = X · W_K     (W_K: 512 × 64)
 V = X · W_V     (W_V: 512 × 64)
 
-d_k = d_model / h = 512 / 8 = 64</code></pre></div>
+<a href="#glossario-dmodel" class="glossary-link">d_k</a> = <a href="#glossario-dmodel" class="glossary-link">d_model</a> / h = 512 / 8 = 64</code></pre></div>
 
 <p><strong>Passo 2: Calcular scores</strong> — produto escalar de cada Query com TODAS as Keys:</p>
 <div class="code-block"><span class="lang-tag">Matriz de Scores (n × n)</span>
@@ -710,7 +712,7 @@ Q₄  [ 0.0  0.3  0.1  0.9 ]</code></pre></div>
 <pre><code>Sem escala: softmax([50, 5, 3])  = [1.0, 0.0, 0.0]  ← muito concentrado
 Com escala: softmax([6.25, 0.63, 0.38]) = [0.85, 0.08, 0.07]  ← saudável</code></pre></div>
 
-<p><strong>Passo 4: Softmax</strong> — normaliza cada linha para soma = 1 (distribuição de probabilidade)</p>
+<p><strong>Passo 4: <a href="#glossario-softmax" class="glossary-link">Softmax</a></strong> — normaliza cada linha para soma = 1 (distribuição de probabilidade)</p>
 <p><strong>Passo 5: Multiplicar por V</strong> — cada token de saída é uma soma ponderada dos Values de TODOS os tokens:</p>
 
 <div class="math-block">
@@ -816,7 +818,7 @@ $$\text{Attention}(Q, K, V) = \text{softmax}\!\left(\frac{QK^T}{\sqrt{d_k}}\righ
   <tr><td>Semântica</td><td>"cansada" está ligado a "disse" (explicação)?</td></tr>
   <tr><td>Posicional</td><td>Que palavras estão adjacentes?</td></tr>
 </table>
-<p>Uma única cabeça de atenção precisa representar TUDO isso nos mesmos 64 números. É como forçar um único especialista a ser simultaneamente sintaticista, semanticista e analista de discurso — ele faz uma média e perde nuances. O paper confirma: atenção de cabeça única perde <strong>0.9 BLEU</strong> (Tabela 3, linha A).</p>
+<p>Uma única cabeça de atenção precisa representar TUDO isso nos mesmos 64 números. É como forçar um único especialista a ser simultaneamente sintaticista, semanticista e analista de discurso — ele faz uma média e perde nuances. O paper confirma: atenção de cabeça única perde <strong>0.9 <a href="#glossario-bleu" class="glossary-link">BLEU</a></strong> (Tabela 3, linha A).</p>
 
 <h4>Intuição Central — Os 8 Detetives Especializados</h4>
 <p>Você está analisando uma cena de crime. Não chama UM perito. Chama:</p>
@@ -856,7 +858,7 @@ O número total de multiplicações é idêntico. A diferença é que 8 cabeças
 <p><strong>Por que h=8 é o ponto ótimo?</strong> Muitas cabeças → cada uma tem d_k muito pequeno → perde capacidade de representação. Poucas cabeças → perde especialização. O paper testou e 8 foi o sweet spot empírico.</p>
 
 <h4>Na Prática — Visualização e Dropout</h4>
-<p>As 8 cabeças são processadas como 8 "amostras" em um batch, permitindo paralelização total via batch matrix multiplication na GPU. Dropout de 0.1 é aplicado nos pesos de atenção (após softmax) para evitar dependência excessiva de uma única cabeça.</p>
+<p>As 8 cabeças são processadas como 8 "amostras" em um batch, permitindo paralelização total via batch matrix multiplication na GPU. <a href="#glossario-dropout" class="glossary-link">Dropout</a> de 0.1 é aplicado nos pesos de atenção (após <a href="#glossario-softmax" class="glossary-link">softmax</a>) para evitar dependência excessiva de uma única cabeça.</p>
 
 <h4>Conexões</h4>
 <ul>
@@ -1164,7 +1166,7 @@ Duas posições próximas têm padrões similares.</code></pre></div>
 3. SOMAR: entrada_da_atenção = Embedding + PE(3)
 
 Por que SOMAR e não CONCATENAR?
-  Somar preserva d_model = 512 (concat dobraria para 1024).
+  Somar preserva <a href="#glossario-dmodel" class="glossary-link">d_model</a> = 512 (concat dobraria para 1024).
   O modelo aprende a separar sinal semântico do posicional.
   Embeddings × √512 equilibra a magnitude com PE (±1).</code></pre></div>
 
@@ -1173,7 +1175,7 @@ Por que SOMAR e não CONCATENAR?
 
 <h4>Conexões</h4>
 <ul>
-  <li><strong>Embeddings × √d_model:</strong> sem esse fator, o PE (±1) dominaria o sinal semântico no início do treino</li>
+  <li><strong>Embeddings × √<a href="#glossario-dmodel" class="glossary-link">d_model</a>:</strong> sem esse fator, o PE (±1) dominaria o sinal semântico no início do treino</li>
   <li><strong>RoPE (Rotary Position Embedding):</strong> evolução usada em LLaMA e Mistral — codifica posição como rotação nos vetores Q e K, não como adição</li>
   <li><strong>ALiBi (Attention with Linear Biases):</strong> alternativa sem PE explícito — adiciona um viés linear negativo à matriz de atenção. Simples e eficaz</li>
   <li><strong>Contexto longo:</strong> PE senoidal permite teoricamente extrapolar para sequências maiores que as do treino — RoPE também com ajuste de frequência</li>
@@ -1288,7 +1290,7 @@ O gradiente sempre tem um caminho direto de volta.</code></pre></div>
 Depois: γ × normalizado + β  (γ e β são aprendidos)</code></pre></div>
 
 <h4>Matemática</h4>
-<p><strong>Feed-Forward Network completa:</strong></p>
+<p><strong>Feed-Forward Network com <a href="#glossario-relu" class="glossary-link">ReLU</a>:</strong></p>
 <div class="math-block">
 $$\text{FFN}(x) = \text{ReLU}(xW_1 + b_1)W_2 + b_2$$
 <p style="text-align:center;font-size:13px;color:var(--muted);margin-top:8px">
@@ -1465,9 +1467,9 @@ SAÍDA (auto-regressiva):
 <h4>Hiperparâmetros Completos</h4>
 <table>
   <tr><th>Parâmetro</th><th>Valor</th><th>O que afeta</th></tr>
-  <tr><td>d_model</td><td>512</td><td>Dimensionalidade de tudo (embeddings, atenção, FFN entrada/saída)</td></tr>
-  <tr><td>d_ff</td><td>2048</td><td>Expansão interna da FFN (4× d_model)</td></tr>
-  <tr><td>h (cabeças)</td><td>8</td><td>Número de atenções paralelas. d_k = d_model/h = 64</td></tr>
+  <tr><td><a href="#glossario-dmodel" class="glossary-link">d_model</a></td><td>512</td><td>Dimensionalidade de tudo (embeddings, atenção, FFN entrada/saída)</td></tr>
+  <tr><td><a href="#glossario-dmodel" class="glossary-link">d_ff</a></td><td>2048</td><td>Expansão interna da FFN (4× <a href="#glossario-dmodel" class="glossary-link">d_model</a>)</td></tr>
+  <tr><td>h (cabeças)</td><td>8</td><td>Número de atenções paralelas. <a href="#glossario-dmodel" class="glossary-link">d_k</a> = <a href="#glossario-dmodel" class="glossary-link">d_model</a>/h = 64</td></tr>
   <tr><td>N (camadas)</td><td>6 enc + 6 dec</td><td>Profundidade do modelo</td></tr>
   <tr><td>P_drop</td><td>0.1</td><td>Dropout após cada sub-camada, embeddings e atenção</td></tr>
   <tr><td>ε_ls</td><td>0.1</td><td>Label smoothing — 90% no token certo, 10% distribuído</td></tr>
