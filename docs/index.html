@@ -2091,6 +2091,17 @@ Saída: O, L (logsumexp)
   <li>Você tem uma H100 e quer treinar com N=32768, d=128. Qual versão do FA usar e por quê?</li>
 </ol>
 
+<h4>Requisitos de Hardware por Versao</h4>
+<table>
+  <tr><th>Versao</th><th>GPU Minima</th><th>Arquitetura</th><th>Instrucoes</th><th>Google Colab?</th></tr>
+  <tr><td><strong>FA1</strong></td><td>Qualquer NVIDIA</td><td>Turing+</td><td>mma.sync</td><td>✅ Gratuito (T4)</td></tr>
+  <tr><td><strong>FA2</strong></td><td>A100 / RTX 3090</td><td><strong>Ampere</strong></td><td>mma.sync</td><td>✅ <strong>Pro</strong> (A100)</td></tr>
+  <tr><td><strong>FA3</strong></td><td><strong>H100 / H200</strong></td><td><strong>Hopper</strong></td><td><strong>WGMMA + TMA + FP8</strong></td><td>❌ Indisponivel</td></tr>
+  <tr><td><strong>FA4</strong></td><td>H100 / B200</td><td>Hopper / Blackwell</td><td>WGMMA + TMA + FP8</td><td>❌ Indisponivel</td></tr>
+</table>
+<p><strong>Por que FA3 nao roda em A100/T4:</strong> WGMMA, TMA e FP8 sao instrucoes que <strong>nao existem no silicio</strong> da Ampere/Turing. O codigo do FA3 simplesmente nao compila nessas GPUs.</p>
+<p><strong>Onde conseguir H100:</strong> Lambda Labs (~$2.50/h), Vast.ai (~$3/h), RunPod (~$3.50/h), Lightning AI (creditos gratuitos no trial).</p>
+
 <h4>Recursos Adicionais</h4>
 <ul>
   <li><a href="https://github.com/Dao-AILab/flash-attention" target="_blank">Código oficial</a> — <code>flash_attn/csrc/flash_attn_3/</code></li>

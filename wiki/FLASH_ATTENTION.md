@@ -419,6 +419,44 @@ O repositório já tem `flash-attn-4` (beta), reescrito em **CuTeDSL**, otimizad
 
 ---
 
+## Requisitos de Hardware por Versão
+
+Cada versão do Flash Attention depende de instruções de GPU que só existem a partir de uma arquitetura específica:
+
+| Versão | GPU Mínima | Arquitetura | Instruções Críticas | Google Colab? |
+|--------|-----------|-------------|---------------------|---------------|
+| **FA1** | Qualquer NVIDIA (2018+) | Turing+ | `mma.sync` | ✅ Gratuito (T4) |
+| **FA2** | A100 / RTX 3090 | **Ampere** | `mma.sync` otimizado | ✅ **Pro** (A100 40GB) |
+| **FA3** | **H100 / H200** | **Hopper** | **WGMMA + TMA + FP8** | ❌ Indisponível |
+| **FA4** | H100 / B200 | Hopper / **Blackwell** | WGMMA + TMA + FP8 | ❌ Indisponível |
+
+### Por que FA3 não roda em A100/T4
+
+O FA3 usa 3 recursos que **não existem no silício** da Ampere (A100) ou Turing (T4):
+
+1. **WGMMA** (Warp Group MMA): instrução assíncrona de multiplicação de matrizes que permite ao warp group **continuar executando** enquanto a multiplicação roda nos Tensor Cores. A Ampere usa `mma.sync`, que é síncrona (bloqueia a warp até terminar).
+
+2. **TMA** (Tensor Memory Accelerator): hardware dedicado na Hopper para transferências HBM↔SRAM. Calcula índices e bounds automaticamente, **liberando registradores** que na Ampere seriam usados para endereçamento. É assíncrono — permite sobrepor carga de dados com computação.
+
+3. **FP8 nos Tensor Cores**: a H100 tem throughput de **1978 TFLOPS** em FP8 (2× o FP16 da Ampere). A A100 simplesmente não tem hardware para FP8.
+
+Sem essas instruções, o código do FA3 **não compila** — `wgmma` e `tma` são instruções PTX que o driver da A100/T4 não reconhece.
+
+### Onde conseguir H100 para testar FA3
+
+| Opção | Custo Aproximado | Nota |
+|-------|------------------|------|
+| **Google Colab** | — | ❌ Não tem H100 |
+| **Lambda Labs** | ~$2.50/hora | H100 SXM5 80GB, sob demanda |
+| **Vast.ai** | ~$3-4/hora | Marketplace, preços variam |
+| **RunPod** | ~$3.50/hora | H100 PCIe, fácil de usar |
+| **Lightning AI** | Créditos grátis | Trial com H100 por algumas horas |
+| **Kaggle** | — | ❌ Só tem T4 e P100 |
+
+Para estudo, **Lightning AI** ou **Vast.ai** são as opções mais acessíveis. Uma hora de H100 é suficiente para compilar e testar o FA3 com sequências de 8K-16K tokens.
+
+---
+
 ## Pré-requisitos
 
 - Estrutura do Transformer (atenção multi-cabeça, Q/K/V)
