@@ -312,8 +312,8 @@ MathJax = {
     <div class="sidebar-section"><h2>Eficiência de Atenção</h2></div>
     <ul class="sidebar-nav">
       <li><a href="#flash-attention" onclick="closeSidebar()"><span class="status-dot done"></span>Flash Attention</a></li>
-      <li><a href="#multi-query" onclick="closeSidebar()"><span class="status-dot pending"></span>Multi-Query Attention</a></li>
-      <li><a href="#grouped-query" onclick="closeSidebar()"><span class="status-dot pending"></span>Grouped Query Attention</a></li>
+      <li><a href="#multi-query" onclick="closeSidebar()"><span class="status-dot done"></span>Multi-Query Attention</a></li>
+      <li><a href="#grouped-query" onclick="closeSidebar()"><span class="status-dot done"></span>Grouped Query Attention</a></li>
     </ul>
 
     <div class="sidebar-section"><h2>Paralelismo</h2></div>
@@ -367,8 +367,8 @@ MathJax = {
     <p>Uma jornada progressiva pelas técnicas que transformaram o treinamento de modelos de linguagem — desde os fundamentos matemáticos até as arquiteturas que rodam em milhares de GPUs. Abordagem linear: um conceito por vez, do básico ao avançado.</p>
     <div class="hero-stats">
       <div class="hero-stat"><div class="num">25</div><div class="label">Tópicos na trilha</div></div>
-      <div class="hero-stat"><div class="num">9</div><div class="label">Dominados</div></div>
-      <div class="hero-stat"><div class="num">36%</div><div class="label">Progresso</div></div>
+      <div class="hero-stat"><div class="num">11</div><div class="label">Dominados</div></div>
+      <div class="hero-stat"><div class="num">44%</div><div class="label">Progresso</div></div>
       <div class="hero-stat"><div class="num" id="quizGlobalPct">0%</div><div class="label">Quiz Respondido</div></div>
     </div>
   </section>
@@ -864,8 +864,8 @@ O número total de multiplicações é idêntico. A diferença é que 8 cabeças
 <ul>
   <li><strong>Masked Multi-Head Attention:</strong> no decoder, a mesma estrutura mas com máscara triangular</li>
   <li><strong>Cross-Attention:</strong> Q vem do decoder, K e V do encoder — mas ainda multi-head</li>
-  <li><strong>Multi-Query Attention (MQA):</strong> compartilha K e V entre todas as cabeças para reduzir KV-cache na inferência</li>
-  <li><strong>Grouped Query Attention (GQA):</strong> meio-termo: agrupa cabeças que compartilham K,V</li>
+  <li><strong><a href="#multi-query">Multi-Query Attention (MQA)</a>:</strong> compartilha K e V entre todas as cabeças para reduzir KV-cache na inferência</li>
+  <li><strong><a href="#grouped-query">Grouped Query Attention (GQA)</a>:</strong> meio-termo: agrupa cabeças que compartilham K,V</li>
 </ul>
 
 <h4>Perguntas de Revisão</h4>
@@ -1853,7 +1853,7 @@ Saída: O, L (logsumexp)
 
 <h4>Conexões</h4>
 <ul>
-  <li><strong>Multi-Query / Grouped Query Attention:</strong> reduzem cabeças de K,V — FA2 suporta nativamente. Essencial para inferência (reduz KV cache)</li>
+  <li><strong><a href="#multi-query">Multi-Query</a> / <a href="#grouped-query">Grouped Query Attention</a>:</strong> reduzem cabeças de K,V — FA2 suporta nativamente. Essencial para inferência (reduz KV cache)</li>
   <li><strong>FSDP:</strong> divide parâmetros entre GPUs; combinado com FA permite modelos maiores com contexto maior</li>
   <li><strong>LoRA:</strong> FA acelera forward/backward do modelo base; LoRA reduz parâmetros treináveis</li>
   <li><strong>Quantização (INT8/FP8):</strong> FA3 incorpora FP8 no forward via incoherent processing</li>
@@ -1956,33 +1956,161 @@ Saída: O, L (logsumexp)
       </div>
     </article>
 
-    <!-- Multi-Query Attention -->
+    <!-- Multi-Query Attention (MQA) -->
     <article class="topic" id="multi-query">
-      <div class="topic-marker"></div>
+      <div class="topic-marker done"></div>
       <div class="topic-card">
         <div class="topic-header">
-          <h3>Multi-Query Attention</h3>
-          <span class="topic-badge pending">🔴 Não estudado</span>
+          <h3>9. Multi-Query Attention (MQA) — Uma K,V para Todas as Cabeças</h3>
+          <span class="topic-badge done">🟢 Dominado</span>
         </div>
-        <div class="topic-placeholder">
-          <div class="icon">📚</div>
-          <p>Conteúdo ainda não estudado. Siga a trilha de estudos para chegar aqui.</p>
-          <p style="font-size:12px;margin-top:8px">Pré-requisito: Flash Attention</p>
+        <div class="topic-body">
+<h4>O Problema</h4>
+<p>Na <strong>inferência</strong> (geração de texto), o decoder guarda os K e V de tokens já gerados na <strong>KV-cache</strong>. Com 8 cabeças: <code>8 × 2 × n × 64</code> floats por camada. Para 32 camadas com 4096 tokens, a KV-cache pode ocupar <strong>dezenas de GB</strong> — mais que os próprios pesos do modelo. O problema não é o treino — é a inferência.</p>
+
+<h4>Intuição Central — Pesquisadores na Biblioteca</h4>
+<p>8 pesquisadores (Q₁...Q₈) fazem perguntas a livros. No Multi-Head, cada um tem seu PRÓPRIO índice (K) e PRÓPRIA cópia (V) — 8 de tudo. Mas... os livros são os mesmos! Por que manter 8 cópias?</p>
+<p><strong>MQA:</strong> todos os 8 pesquisadores compartilham o MESMO índice e a MESMA cópia. Cada um faz perguntas diferentes, mas consulta a mesma fonte.</p>
+
+<h4>Como Funciona</h4>
+<div class="math-block">
+$$\begin{aligned}
+Q_i &= X \cdot W^Q_i \quad (i = 1 \ldots h) \quad &\text{8 projeções de Query}\\
+K   &= X \cdot W^K                          \quad &\text{UMA projeção de Key (compartilhada)}\\
+V   &= X \cdot W^V                          \quad &\text{UMA projeção de Value (compartilhada)}\\
+\text{head}_i &= \text{Attention}(Q_i, K, V)
+\end{aligned}$$
+</div>
+<div class="code-block"><span class="lang-tag">Estrutura comparada</span>
+<pre><code>Multi-Head:                          MQA:
+Q₁ K₁ V₁ → head₁                    Q₁ ─┐
+Q₂ K₂ V₂ → head₂                    Q₂ ─┤
+Q₃ K₃ V₃ → head₃                    Q₃ ─┼─ K, V (ÚNICOS!)
+...                                  ... ─┤
+Q₈ K₈ V₈ → head₈                    Q₈ ─┘</code></pre></div>
+
+<h4>Impacto</h4>
+<table>
+  <tr><th>Métrica</th><th>Multi-Head (h=8)</th><th>MQA</th><th>Redução</th></tr>
+  <tr><td>KV-cache por token</td><td>8 × 2 × 64 = 1024 floats</td><td>1 × 2 × 64 = 128 floats</td><td><strong>8×</strong></td></tr>
+  <tr><td>Qualidade (perplexidade)</td><td>Baseline</td><td>&lt; 0.1 de aumento</td><td>~igual</td></tr>
+</table>
+<p><strong>Modelos que usam MQA:</strong> PaLM (540B), Gemini. A economia de memória é tão grande que permite contexto mais longo com a mesma GPU.</p>
+
+<h4>Conexões</h4>
+<ul>
+  <li><strong>KV-cache:</strong> MQA só faz sentido por causa da KV-cache na inferência</li>
+  <li><strong>Flash Attention:</strong> FA reduz O(N²) da atenção, MQA reduz O(N) da KV-cache — combinados, permitem contexto longo</li>
+  <li><strong>GQA:</strong> evolução direta do MQA — adiciona grupos para mais expressividade</li>
+</ul>
         </div>
       </div>
     </article>
 
-    <!-- Grouped Query Attention -->
+    <!-- Grouped Query Attention (GQA) -->
     <article class="topic" id="grouped-query">
-      <div class="topic-marker"></div>
+      <div class="topic-marker done"></div>
       <div class="topic-card">
         <div class="topic-header">
-          <h3>Grouped Query Attention</h3>
-          <span class="topic-badge pending">🔴 Não estudado</span>
+          <h3>10. Grouped Query Attention (GQA) — O Meio-Termo</h3>
+          <span class="topic-badge done">🟢 Dominado</span>
         </div>
-        <div class="topic-placeholder">
-          <div class="icon">📚</div>
-          <p>Conteúdo ainda não estudado.</p>
+        <div class="topic-body">
+<h4>O Problema</h4>
+<p>MQA é eficiente demais — compartilhar UMA K,V entre 8+ cabeças limita a expressividade, especialmente em modelos muito grandes (70B+). Mas Multi-Head completo gasta memória demais na KV-cache. <strong>Existe um meio-termo?</strong></p>
+
+<h4>Intuição Central — Duplas de Pesquisadores</h4>
+<p>Em vez de 8 pesquisadores com 8 cópias (Multi-Head) ou 8 com 1 cópia (MQA), organize-os em <strong>4 duplas</strong>. Cada dupla compartilha um índice e uma cópia. Duplas diferentes têm cópias diferentes.</p>
+<p>Isso dá mais expressividade que MQA (4 "perspectivas" em vez de 1), mas ainda economiza 4× de memória em relação ao Multi-Head.</p>
+
+<h4>Como Funciona</h4>
+<p><strong>GQA com G=4 grupos (h=8 cabeças):</strong></p>
+<div class="code-block"><span class="lang-tag">GQA — 4 grupos, cada um com 2 cabeças de Q</span>
+<pre><code>Grupo 1: Q₁, Q₂ ── K₁, V₁
+Grupo 2: Q₃, Q₄ ── K₂, V₂
+Grupo 3: Q₅, Q₆ ── K₃, V₃
+Grupo 4: Q₇, Q₈ ── K₄, V₄</code></pre></div>
+<p>Cada grupo tem <code>h/G = 2</code> cabeças de Q compartilhando a mesma K,V. A KV-cache armazena apenas <code>G × 2 × n × d_k</code> floats.</p>
+
+<h4>Casos Extremos</h4>
+<table>
+  <tr><th>G</th><th>Nome</th><th>KV-cache</th><th>Expressividade</th></tr>
+  <tr><td>G = 1</td><td><strong>MQA</strong></td><td>Mínima (1×)</td><td>Mínima</td></tr>
+  <tr><td>G = 4</td><td><strong>GQA</strong> (LLaMA 2)</td><td>4× menor</td><td>Quase total</td></tr>
+  <tr><td>G = h</td><td><strong>Multi-Head</strong></td><td>Máxima (h×)</td><td>Máxima</td></tr>
+</table>
+
+<h4>Resultados Reais (LLaMA 2 70B)</h4>
+<table>
+  <tr><th>Modelo</th><th>h</th><th>G</th><th>Redução KV-cache</th><th>Perplexidade</th></tr>
+  <tr><td>Multi-Head baseline</td><td>32</td><td>32</td><td>1×</td><td>~3.30</td></tr>
+  <tr><td><strong>GQA (LLaMA 2)</strong></td><td>32</td><td><strong>8</strong></td><td><strong>4×</strong></td><td>~3.32</td></tr>
+  <tr><td>MQA</td><td>32</td><td>1</td><td>32×</td><td>~3.38</td></tr>
+</table>
+<p>A diferença de qualidade entre GQA e Multi-Head completo é <strong>minúscula</strong> (0.02 de perplexidade), mas a economia de memória é de 4×. Por isso LLaMA 2/3 e Mistral adotaram GQA.</p>
+
+<h4>Pré-requisitos</h4>
+<ul>
+  <li><a href="#multi-head">Multi-Head Attention</a></li>
+  <li><a href="#multi-query">Multi-Query Attention (MQA)</a> — entender MQA primeiro ajuda a entender GQA</li>
+  <li>KV-cache (conceito de inferência auto-regressiva)</li>
+</ul>
+
+<h4>Conexões</h4>
+<ul>
+  <li><strong>Flash Decoding:</strong> extensão do Flash Attention para inferência — otimiza ainda mais o acesso à KV-cache</li>
+  <li><strong>Quantização da KV-cache:</strong> combina GQA + INT8/FP8 no cache para economizar ainda mais</li>
+  <li><strong>LLaMA 3:</strong> continua usando GQA — se tornou padrão na indústria</li>
+</ul>
+
+<div class="quiz-section" data-topic="mqa-gqa">
+  <h4>Checkpoint — Multipla Escolha</h4>
+
+  <div class="quiz-question" data-qid="0" data-correct="1">
+    <p class="quiz-q-text">1. Qual o problema que MQA e GQA resolvem?</p>
+    <label class="quiz-option"><input type="radio" name="t9_q0" value="0"><span class="letter">A</span> O custo O(N²) da atencao durante o treino</label>
+    <label class="quiz-option"><input type="radio" name="t9_q0" value="1"><span class="letter">B</span> O tamanho da KV-cache durante a inferencia</label>
+    <label class="quiz-option"><input type="radio" name="t9_q0" value="2"><span class="letter">C</span> A estabilidade numerica do softmax</label>
+    <label class="quiz-option"><input type="radio" name="t9_q0" value="3"><span class="letter">D</span> A velocidade da tokenizacao</label>
+  </div>
+
+  <div class="quiz-question" data-qid="1" data-correct="2">
+    <p class="quiz-q-text">2. Qual a diferenca entre MQA e Multi-Head?</p>
+    <label class="quiz-option"><input type="radio" name="t9_q1" value="0"><span class="letter">A</span> MQA usa mais cabecas de atencao</label>
+    <label class="quiz-option"><input type="radio" name="t9_q1" value="1"><span class="letter">B</span> MQA remove o softmax da atencao</label>
+    <label class="quiz-option"><input type="radio" name="t9_q1" value="2"><span class="letter">C</span> MQA mantem multiplas Q mas compartilha UMA unica K,V entre todas as cabecas</label>
+    <label class="quiz-option"><input type="radio" name="t9_q1" value="3"><span class="letter">D</span> MQA usa apenas uma cabeca de atencao</label>
+  </div>
+
+  <div class="quiz-question" data-qid="2" data-correct="1">
+    <p class="quiz-q-text">3. Se h=16 e G=4, qual o fator de reducao da KV-cache?</p>
+    <label class="quiz-option"><input type="radio" name="t9_q2" value="0"><span class="letter">A</span> 2× (metade do tamanho)</label>
+    <label class="quiz-option"><input type="radio" name="t9_q2" value="1"><span class="letter">B</span> 4× (um quarto do tamanho)</label>
+    <label class="quiz-option"><input type="radio" name="t9_q2" value="2"><span class="letter">C</span> 8× (um oitavo do tamanho)</label>
+    <label class="quiz-option"><input type="radio" name="t9_q2" value="3"><span class="letter">D</span> 16× (um dezesseis avos)</label>
+  </div>
+
+  <div class="quiz-question" data-qid="3" data-correct="0">
+    <p class="quiz-q-text">4. Por que o LLaMA 2 usa GQA em vez de MQA puro?</p>
+    <label class="quiz-option"><input type="radio" name="t9_q3" value="0"><span class="letter">A</span> MQA e muito agressivo — GQA oferece melhor equilibrio entre qualidade e memoria</label>
+    <label class="quiz-option"><input type="radio" name="t9_q3" value="1"><span class="letter">B</span> MQA e mais lento que GQA no treino</label>
+    <label class="quiz-option"><input type="radio" name="t9_q3" value="2"><span class="letter">C</span> GQA foi inventado antes do MQA</label>
+    <label class="quiz-option"><input type="radio" name="t9_q3" value="3"><span class="letter">D</span> MQA nao funciona com Flash Attention</label>
+  </div>
+
+  <div class="quiz-question" data-qid="4" data-correct="3">
+    <p class="quiz-q-text">5. Qual configuracao de G vira MQA e qual vira Multi-Head?</p>
+    <label class="quiz-option"><input type="radio" name="t9_q4" value="0"><span class="letter">A</span> G=0 → MQA, G=h → Multi-Head</label>
+    <label class="quiz-option"><input type="radio" name="t9_q4" value="1"><span class="letter">B</span> G=h → MQA, G=0 → Multi-Head</label>
+    <label class="quiz-option"><input type="radio" name="t9_q4" value="2"><span class="letter">C</span> G=h/2 → MQA, G=2h → Multi-Head</label>
+    <label class="quiz-option"><input type="radio" name="t9_q4" value="3"><span class="letter">D</span> G=1 → MQA, G=h → Multi-Head</label>
+  </div>
+
+  <div class="quiz-score"></div>
+  <div class="quiz-progress-bar"><div class="fill"></div></div>
+  <div class="quiz-stats"><span>Quiz</span><span class="pct">0%</span></div>
+  <button class="quiz-btn-retry">Refazer Quiz</button>
+</div>
         </div>
       </div>
     </article>

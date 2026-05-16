@@ -1,7 +1,7 @@
 # 📚 Wiki Neospace — Índice de Conhecimento
 
 ## Progresso Geral
-- Tópicos estudados: 9 de ~25
+- Tópicos estudados: 11 de ~25
 - 🔴 Não estudado | 🟡 Em estudo | 🟢 Dominado
 
 ---
@@ -19,8 +19,8 @@
 
 ## Técnicas de Eficiência de Atenção
 - [x] [Flash Attention](FLASH_ATTENTION.md) 🟢
-- [ ] Multi-Query Attention
-- [ ] Grouped Query Attention
+- [x] [Multi-Query & Grouped Query Attention](MQA_GQA.md) 🟢
+- [x] [Grouped Query Attention](MQA_GQA.md) 🟢
 
 ## Técnicas de Paralelismo
 - [ ] Data Parallel (DDP)
