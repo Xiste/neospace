@@ -1,7 +1,7 @@
 # 📚 Wiki Neospace — Índice de Conhecimento
 
 ## Progresso Geral
-- Tópicos estudados: 8 de ~25
+- Tópicos estudados: 9 de ~25
 - 🔴 Não estudado | 🟡 Em estudo | 🟢 Dominado
 
 ---

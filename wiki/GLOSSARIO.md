@@ -216,3 +216,207 @@ O fator `e^(3-5) = 0.135` "encolheu" corretamente os exponenciais do bloco 1 par
 
 ### Para aprofundar
 - [Online Normalizer Calculation for Softmax (Milakov & Gimelshein, 2018)](https://arxiv.org/abs/1805.02867)
+
+---
+
+## Softmax
+
+### O que é
+
+Softmax é uma função que converte um vetor de números quaisquer (positivos, negativos, grandes, pequenos) em **probabilidades que somam 1**. É a função mais usada em redes neurais quando o modelo precisa "escolher" entre várias opções.
+
+Para um vetor z = [z₁, z₂, ..., zₙ]:
+
+$$\text{softmax}(z_i) = \frac{e^{z_i}}{\sum_{j=1}^{n} e^{z_j}}$$
+
+**Intuição:** imagine um concurso onde cada candidato recebe uma nota. A softmax pega essas notas e transforma em "chance de ser escolhido" — quem tem nota maior ganha mais chance, mas todos recebem pelo menos um pouco. O denominador garante que todas as chances somem 100%.
+
+**Exemplo:** notas [2, 1, 0] → softmax → [0.67, 0.24, 0.09] (67%, 24%, 9%). O 2 ganhou mais peso porque e² ≈ 7.4 é bem maior que e¹ ≈ 2.7.
+
+### Por que aparece em TODO lugar
+
+- **Atenção:** converte scores QKᵀ em pesos de atenção (probabilidades de "prestar atenção" em cada token)
+- **Saída do Transformer:** converte logits em probabilidades sobre o vocabulário para escolher a próxima palavra
+- **Estabilidade numérica:** subtrai-se o máximo antes de aplicar exp (evita overflow)
+
+---
+
+## BLEU (Bilingual Evaluation Understudy)
+
+### O que é
+
+BLEU é uma métrica de 0 a 100 que mede a qualidade de tradução automática comparando a tradução do modelo com traduções humanas de referência. Quanto mais alto, melhor. É a métrica padrão usada no paper do Transformer (Vaswani et al., 2017).
+
+**Como funciona (intuição):** conta quantos pedaços de 1, 2, 3 e 4 palavras (n-gramas) da tradução do modelo também aparecem na tradução humana de referência. Penaliza traduções muito curtas (para evitar que o modelo só traduza palavras fáceis).
+
+**Exemplo:** EN→DE BLEU 28.4 do Transformer Big significava que, em 2017, era o melhor resultado já obtido para tradução inglês→alemão.
+
+---
+
+## Notação Big-O — O(n²), O(n), O(1)
+
+### O que é
+
+Big-O é uma notação matemática que descreve **como algo cresce** quando o tamanho da entrada (n) aumenta. Não é um número exato — é a tendência.
+
+| Notação | Significado | Exemplo real |
+|---------|------------|-------------|
+| O(1) | Tempo/memória constante | Acessar um elemento de array pelo índice |
+| O(n) | Cresce linearmente | Somar todos os elementos de uma lista |
+| O(n²) | Cresce quadraticamente | Comparar cada elemento com todos os outros (atenção padrão) |
+| O(n·d) | Linear em ambas as dimensões | Multiplicar matriz n×d por vetor d |
+
+**Por que aparece na wiki:** o problema central da atenção é O(n²) em memória — se a sequência dobra, a memória quadruplica. Flash Attention reduz isso para O(n). Cada fator de redução é um avanço.
+
+---
+
+## FP16, BF16, FP32, FP8 — Formatos de Ponto Flutuante
+
+### O que são
+
+São formatos que definem **quantos bits** são usados para representar cada número e como esses bits são distribuídos entre precisão e alcance.
+
+| Formato | Bits | Expoente | Mantissa | Alcance | Precisão |
+|---------|------|----------|----------|---------|----------|
+| FP32 | 32 | 8 | 23 | ±3.4×10³⁸ | Alta (~7 dígitos) |
+| FP16 | 16 | 5 | 10 | ±65,504 | Média (~3 dígitos) |
+| BF16 | 16 | 8 | 7 | Igual FP32 | Baixa (~2 dígitos) |
+| FP8 (E4M3) | 8 | 4 | 3 | ±448 | Muito baixa (~1 dígito) |
+
+**Intuição (balança de precisão):** imagine medir distâncias com uma régua:
+- FP32: régua de 1km com marcação a cada milímetro (muito alcance, muita precisão)
+- FP16: régua de 65m com marcação a cada centímetro (alcance menor)
+- BF16: régua de 1km com marcação a cada 3cm (mesmo alcance do FP32, menos precisão)
+- FP8: régua de 50cm com marcação a cada 3cm (pouco alcance, pouca precisão)
+
+### Por que aparece
+
+- **Mixed Precision (FP16 + FP32):** treina com FP16 (rápido, econômico) mas mantém cópias críticas em FP32 (estável)
+- **Flash Attention 3:** usa FP8 no forward para 2× mais velocidade na H100
+- **BF16:** preferido em modelos modernos (GPT, LLaMA) porque tem o mesmo alcance do FP32, evitando overflow em gradientes
+
+---
+
+## Gradiente e Backpropagation
+
+### O que é
+
+**Gradiente** é um vetor que aponta a direção de subida mais íngreme de uma função. Em IA, usamos o gradiente da **função de perda** (erro) para saber como ajustar cada peso do modelo.
+
+**Analogia:** você está no topo de uma montanha (erro alto) e quer descer ao vale (erro baixo), mas há neblina (não vê o vale). O gradiente é como tatear o chão com o pé para saber qual direção desce mais. Cada passo na direção oposta ao gradiente te leva mais para baixo.
+
+**Backpropagation** (retropropagação) é o algoritmo que calcula o gradiente para TODOS os pesos do modelo de uma vez, aplicando a regra da cadeia (cálculo) da última camada até a primeira. É o que torna o treinamento de redes profundas possível.
+
+### Por que aparece
+
+Toda técnica de otimização (Flash Attention, Gradient Checkpointing, Mixed Precision) gira em torno de tornar o cálculo de gradientes mais rápido ou mais eficiente em memória durante o backpropagation.
+
+---
+
+## Cross-Entropy (Entropia Cruzada)
+
+### O que é
+
+Função de perda (loss) que mede a diferença entre duas distribuições de probabilidade: a previsão do modelo e o valor real (ground truth). É a função de perda padrão para classificação e modelos de linguagem.
+
+**Intuição:** se o modelo prevê 90% de chance para a palavra correta, a cross-entropy é baixa (≈0.1). Se prevê só 10% de chance, é alta (≈2.3). O treino minimiza essa função para fazer o modelo ficar cada vez mais "certo" nas previsões.
+
+$$\mathcal{L} = -\sum_{i} y_i \log(p_i)$$
+
+Onde yᵢ é a distribuição real (1 para a classe correta, 0 para as outras) e pᵢ é a previsão do modelo.
+
+---
+
+## Perplexity (Perplexidade)
+
+### O que é
+
+Métrica que mede o quão "surpreso" o modelo fica ao ver um texto. É o exponencial da cross-entropy: `perplexity = e^(cross_entropy)`.
+
+**Intuição:** perplexidade 10 significa que, em média, o modelo hesita entre 10 palavras possíveis a cada posição. É como se o modelo estivesse "em dúvida" entre 10 opções. Quanto menor, melhor — perplexidade 1 significa certeza absoluta (nunca acontece na prática com linguagem real).
+
+---
+
+## GEMM (General Matrix Multiply)
+
+### O que é
+
+GEMM é a operação de multiplicação de matrizes que as GPUs executam em hardware dedicado (Tensor Cores). É a operação mais importante em deep learning — atenção, FFN, projeções, tudo vira GEMM.
+
+**Intuição:** é o "motor" da GPU. As GPUs são tão boas em multiplicar matrizes que o gargalo raramente é a conta em si — é mover dados para alimentar o motor (daí Flash Attention).
+
+**Por que importa:** na A100, GEMM atinge 312 TFLOPS (trilhões de operações por segundo), enquanto operações não-matmul (exponencial, divisão) atingem apenas 19.5 TFLOPS — **16× mais lentas**. Otimizar atenção é reduzir não-GEMMs.
+
+---
+
+## Auto-regressivo
+
+### O que é
+
+Modelo auto-regressivo é aquele que gera a saída **um token por vez**, e cada token gerado é adicionado à entrada para gerar o próximo. O GPT é auto-regressivo: ele gera a palavra 1, depois usa a palavra 1 para gerar a 2, depois usa 1 e 2 para gerar a 3, etc.
+
+**Intuição:** é como escrever um texto: cada palavra que você escreve depende de todas as palavras que já escreveu antes. Você não decide a palavra 50 antes de ter escrito as 49 anteriores.
+
+---
+
+## Beam Search
+
+### O que é
+
+Algoritmo de busca usado na **inferência** (geração de texto) que mantém as k melhores continuações parciais em vez de escolher sempre a melhor próxima palavra (greedy). k = beam size.
+
+**Intuição (beam=4):** em vez de sempre escolher A MAIS provável próxima palavra (que pode levar a um beco sem saída), o modelo mantém 4 "hipóteses" simultâneas e no final escolhe a frase completa mais provável entre as 4.
+
+**Exemplo:** "I ate" → beam=4 mantém: "I ate pizza", "I ate the", "I ate a", "I ate some". No próximo passo expande cada uma e mantém as 4 melhores continuações gerais.
+
+---
+
+## Dropout
+
+### O que é
+
+Técnica de regularização que, durante o treino, **zera aleatoriamente** uma fração p dos neurônios (p=0.1 → 10% desligados). Isso força a rede a não depender excessivamente de neurônios específicos, melhorando a generalização.
+
+**Intuição:** é como estudar para uma prova em grupo, mas a cada dia de estudo alguns colegas faltam. Você aprende a não depender de ninguém específico para entender a matéria. Na prova (inferência), todo mundo comparece e o resultado é melhor.
+
+**No Transformer:** dropout é aplicado após cada sub-camada (atenção e FFN), nos embeddings, e nos pesos de atenção. p=0.1 no paper original.
+
+---
+
+## ReLU (Rectified Linear Unit)
+
+### O que é
+
+Função de ativação simples: `ReLU(x) = max(0, x)`. Se x é negativo, vira 0; se é positivo, passa direto.
+
+**Intuição:** um interruptor: ou o neurônio "dispara" (valor positivo passa) ou fica "desligado" (negativo vira zero). É simples mas funciona — a não-linearidade que permite redes profundas aprenderem funções complexas.
+
+**No Transformer:** usada na Feed-Forward Network: `FFN(x) = ReLU(xW₁ + b₁)W₂ + b₂`. Modelos modernos (GPT, LLaMA) substituíram por funções como GELU ou SwiGLU.
+
+---
+
+## Ensemble
+
+### O que é
+
+Técnica de combinar múltiplos modelos treinados independentemente para melhorar a qualidade final. As previsões dos modelos são combinadas (média ou votação).
+
+**Intuição:** pergunte a 5 especialistas e combine as respostas — o resultado é melhor que perguntar a um só, porque os erros de cada um tendem a se cancelar.
+
+**No Transformer:** o paper de 2017 mostra que o Transformer BASE já superava ensembles de RNNs. Ou seja, um Transformer sozinho batia múltiplos modelos RNN combinados. O Transformer BIG com ensemble batia todo mundo.
+
+---
+
+## Label Smoothing
+
+### O que é
+
+Técnica de regularização que "suaviza" os rótulos de treinamento. Em vez de dizer "a resposta correta tem 100% de probabilidade e as erradas 0%", você distribui um pouco de probabilidade para as classes erradas.
+
+Com ε = 0.1 (valor usado no Transformer):
+- Classe correta: 1 - ε = 0.9 (90%)
+- Classes erradas: ε / (|V|-1) cada (um pouquinho para cada)
+
+**Intuição:** um professor que aceita que às vezes há mais de uma resposta razoável, em vez de dizer "só essa resposta é a certa e o resto é tudo errado". Isso evita overfitting (decorar em vez de aprender).
+
+**Curiosidade:** label smoothing piora a perplexidade (modelo fica menos "certo" de tudo) mas melhora BLEU (traduções ficam melhores). Isso mostra que certeza absoluta nem sempre é melhor.
