@@ -981,6 +981,13 @@ $$\text{softmax}(QK^T + M) = \begin{bmatrix}
 0.1 & 0.1 & 0.3 & 0.5
 \end{bmatrix}$$
 </div>
+<p><strong>Visualmente (█ = visível, ░ = bloqueado):</strong></p>
+<div class="code-block"><span class="lang-tag">Máscara triangular — cada linha só vê colunas ≤ sua posição</span>
+<pre><code>         O   gato  comeu  peixe
+O      [██   ░░    ░░     ░░ ]
+gato   [██   ██    ░░     ░░ ]
+comeu  [██   ██    ██     ░░ ]
+peixe  [██   ██    ██     ██ ]</code></pre></div>
 <p>Por que isso é necessário? Durante o treino, o modelo recebe a sequência completa (teacher forcing). A máscara impede que ele "cole" olhando a resposta correta na posição seguinte.</p>
 
 <h4>Tipo 3: Cross-Attention (Encoder→Decoder)</h4>
@@ -994,6 +1001,23 @@ cheio   [ 0.0      0.0       0.0       0.0       1.0    ]
 "O" liga com "The", "gato" liga com "cat", "cheio" consulta contexto
 Não tem máscara — o decoder pode ver o encoder inteiro</code></pre></div>
 
+<p><strong>Walkthrough: "I love you" → "Eu amo você":</strong></p>
+<div class="code-block"><span class="lang-tag">Cross-Attention passo a passo</span>
+<pre><code>Passo 1: decoder gera "Eu"
+  Q("Eu") consulta K_enc → "I" é o mais relevante
+  V_enc entrega o significado de "I"
+
+Passo 2: decoder gera "amo"
+  Q("amo") consulta K_enc → "love" é o mais relevante
+  V_enc entrega o significado de "love"
+
+Passo 3: decoder gera "você"
+  Q("você") consulta K_enc → "you" é o mais relevante
+  V_enc entrega o significado de "you"
+
+A cada passo, o decoder faz uma pergunta diferente (Q muda),
+mas consulta as mesmas K,V do encoder (a frase original não muda).</code></pre></div>
+
 <h4>Fluxo Completo em Uma Camada do Decoder</h4>
 <div class="code-block"><span class="lang-tag">Decoder — 3 sub-camadas</span>
 <pre><code>1. Masked Self-Attention → "Entendo o que já gerei até agora"
@@ -1005,8 +1029,10 @@ Não tem máscara — o decoder pode ver o encoder inteiro</code></pre></div>
 
 <h4>Conexões</h4>
 <ul>
+  <li><strong>Todos os 3 tipos usam <a href="#multi-head">Multi-Head Attention</a></strong> (8 cabeças). A diferença está apenas na origem de Q/K/V e na presença de máscara — a estrutura interna é idêntica</li>
   <li><strong>GPT (decoder-only):</strong> remove o encoder e a cross-attention. Só tem masked self-attention. Cada token só vê os anteriores</li>
   <li><strong>BERT (encoder-only):</strong> remove o decoder. Só tem self-attention bidirecional (sem máscara). Ideal para tarefas de compreensão</li>
+  <li><strong>Evolução natural:</strong> a masked self-attention do decoder é o gargalo na inferência → <a href="#multi-query">MQA</a> e <a href="#grouped-query">GQA</a> otimizam isso compartilhando K,V entre cabeças</li>
   <li><strong>KV-cache:</strong> na inferência do decoder, K e V de tokens passados são reusados — evita recomputar atenção para o passado inteiro</li>
 </ul>
 
