@@ -935,13 +935,40 @@ O número total de multiplicações é idêntico. A diferença é que 8 cabeças
       <div class="topic-marker done"></div>
       <div class="topic-card">
         <div class="topic-header">
-          <h3>5. Os 3 Tipos de Atenção no Transformer</h3>
+          <h3>5. Encoder & Decoder — Os 3 Tipos de Atenção</h3>
           <span class="topic-badge done">🟢 Dominado</span>
         </div>
         <div class="topic-body">
 <h4>O Problema</h4>
 <p>Modelos seq2seq pré-Transformer comprimiam toda a frase de entrada em um único vetor de contexto. Para frases longas, informação se perdia. A atenção de Bahdanau resolveu parcialmente — o decoder podia visitar cada posição do encoder — mas o encoder em si ainda era sequencial (RNN).</p>
 <p>O Transformer unificou tudo sob o mesmo mecanismo de atenção, mas precisava de <strong>3 configurações diferentes</strong> para funções diferentes.</p>
+
+<div class="code-block"><span class="lang-tag">Arquitetura — Quem faz o quê?</span>
+<pre><code>                    ENCODER                              DECODER
+               (entender a entrada)                (gerar a saida)
+┌──────────────────────────────────┐    ┌──────────────────────────────────┐
+│  6 camadas identicas              │    │  6 camadas identicas              │
+│  ┌────────────────────────────┐  │    │  ┌────────────────────────────┐  │
+│  │ 1. Self-Attention (8 cab.) │  │    │  │ 1. Masked Self-Attn (8 cab)│  │
+│  │    SEM mascara              │  │    │  │    COM mascara triangular   │  │
+│  │    Q,K,V → tudo do encoder  │  │    │  │    Q,K,V → tudo do decoder  │  │
+│  │                             │  │    │  │                             │  │
+│  │ 2. Feed-Forward (FFN)       │  │    │  │ 2. Cross-Attention (8 cab.) │  │
+│  │    + residual + LayerNorm   │  │    │  │    SEM mascara               │  │
+│  └────────────────────────────┘  │    │  │    Q → decoder                │  │
+│                                  │    │  │    K,V → encoder              │  │
+│         ▲                         │    │  │                             │  │
+│         │                         │    │  │ 3. Feed-Forward (FFN)        │  │
+│    ENTRADA                         │    │  │    + residual + LayerNorm    │  │
+│    "The cat..."                    │    │  └────────────────────────────┘  │
+└──────────────────────────────────┘    │         ▲                         │
+                                        │         │                         │
+                                        │    SAIDA (auto-regressiva)         │
+                                        │    "O gato..."                     │
+                                        └──────────────────────────────────┘
+
+Encoder processa 1 vez (frase inteira).  Decoder processa N vezes (1 token por vez).
+Encoder: 2 sub-camadas.                 Decoder: 3 sub-camadas (a cross-attention extra).</code></pre></div>
 
 <h4>Intuição Central — O Tradutor Humano</h4>
 <p>Pense em um tradutor traduzindo do inglês para português:</p>
@@ -957,8 +984,11 @@ O número total de multiplicações é idêntico. A diferença é que 8 cabeças
   <tr><td>3</td><td><strong>Cross-Attention</strong></td><td>Decoder</td><td>Encoder</td><td>❌ Não</td><td>O(n_enc × n_dec)</td></tr>
 </table>
 
+<h4>⬅️ ENCODER — Entender a Entrada (2 sub-camadas por camada)</h4>
+<p><strong>Papel:</strong> ler e entender a entrada completamente. Processa a frase INTEIRA de uma vez. Cada camada tem <strong>2 sub-camadas</strong>: Self-Attention + FFN, ambas com residual + LayerNorm.</p>
+
 <h4>Tipo 1: Encoder Self-Attention (Sem Máscara)</h4>
-<p>Todos os tokens podem ver todos os outros. A matriz de atenção é completa:</p>
+<p><strong>Q, K, V → mesma fonte (encoder).</strong> Todos os tokens podem ver todos os outros. A matriz de atenção é completa:</p>
 <div class="code-block"><span class="lang-tag">Matriz de atenção do encoder (completa)</span>
 <pre><code>       The  cat  sat  on  mat
 The  [ 0.3  0.2  0.1  0.2  0.2 ]  ← "The" pode ver "mat"!
@@ -970,7 +1000,11 @@ mat  [ 0.0  0.1  0.1  0.3  0.5 ]
 Todas as células são preenchidas. Cada token contextualiza
 seu significado com a frase inteira de uma só vez.</code></pre></div>
 
+<h4>➡️ DECODER — Gerar a Saída (3 sub-camadas por camada)</h4>
+<p><strong>Papel:</strong> gerar a saída um token por vez (auto-regressivo). Cada camada tem <strong>3 sub-camadas</strong>: Masked Self-Attention + Cross-Attention + FFN. A cross-attention é a sub-camada EXTRA que o encoder não tem — é a ponte entre entender e gerar.</p>
+
 <h4>Tipo 2: Decoder Masked Self-Attention</h4>
+<p><strong>Q, K, V → mesma fonte (decoder).</strong></p>
 <p>ANTES do softmax, aplica-se uma máscara com $-\infty$ nas posições futuras. O softmax de $-\infty = 0$:</p>
 <div class="math-block">
 $$M_{ij} = \begin{cases} 0 & \text{se } j \leq i \\ -\infty & \text{se } j > i \end{cases}$$
@@ -990,8 +1024,8 @@ comeu  [██   ██    ██     ░░ ]
 peixe  [██   ██    ██     ██ ]</code></pre></div>
 <p>Por que isso é necessário? Durante o treino, o modelo recebe a sequência completa (teacher forcing). A máscara impede que ele "cole" olhando a resposta correta na posição seguinte.</p>
 
-<h4>Tipo 3: Cross-Attention (Encoder→Decoder)</h4>
-<p>O decoder precisa de informação da frase de entrada. Q vem do decoder ("o que estou tentando gerar?"), K e V vêm do encoder ("aqui está o significado da entrada"):</p>
+<h4>Tipo 3: Cross-Attention (Decoder consulta o Encoder)</h4>
+<p>O decoder precisa de informação da frase de entrada. <strong>Q vem do decoder, K e V vêm do encoder.</strong> Isso é crucial: K e V são a saída FINAL do encoder (constante), Q muda a cada token gerado:</p>
 <div class="code-block"><span class="lang-tag">Cross-Attention: matriz retangular (n_dec × n_enc)</span>
 <pre><code>          The(enc)  cat(enc)  sat(enc)  on(enc)  mat(enc)
 O(dec)   [ 0.6      0.1       0.1       0.1       0.1    ]
@@ -1018,20 +1052,25 @@ Passo 3: decoder gera "você"
 A cada passo, o decoder faz uma pergunta diferente (Q muda),
 mas consulta as mesmas K,V do encoder (a frase original não muda).</code></pre></div>
 
-<h4>Fluxo Completo em Uma Camada do Decoder</h4>
-<div class="code-block"><span class="lang-tag">Decoder — 3 sub-camadas</span>
-<pre><code>1. Masked Self-Attention → "Entendo o que já gerei até agora"
-   ↓ + residual + LayerNorm
-2. Cross-Attention → "Consulto a frase original para alinhar"
-   ↓ + residual + LayerNorm
-3. Feed-Forward → "Processo individualmente cada token gerado"
-   ↓ + residual + LayerNorm</code></pre></div>
+<h4>Comparativo Final: Encoder vs Decoder</h4>
+<table>
+  <tr><th>Característica</th><th>⬅️ ENCODER</th><th>➡️ DECODER</th></tr>
+  <tr><td><strong>Função</strong></td><td>Entender a entrada</td><td>Gerar a saída</td></tr>
+  <tr><td><strong>Camadas</strong></td><td>6</td><td>6</td></tr>
+  <tr><td><strong>Sub-camadas</strong></td><td><strong>2</strong> (Self-Attn + FFN)</td><td><strong>3</strong> (Masked Self + Cross + FFN)</td></tr>
+  <tr><td><strong>Atenção 1</strong></td><td>Self-Attention (sem máscara)</td><td>Masked Self-Attention (triangular)</td></tr>
+  <tr><td><strong>Atenção 2</strong></td><td>—</td><td>Cross-Attention (Q=dec, K,V=enc)</td></tr>
+  <tr><td><strong>Q, K, V vêm de</strong></td><td>Mesma fonte (encoder)</td><td>Self: decoder. Cross: Q=dec, K,V=enc</td></tr>
+  <tr><td><strong>Visibilidade</strong></td><td>Tudo visível (bidirecional)</td><td>Self: só passado. Cross: tudo visível</td></tr>
+  <tr><td><strong>Processamento</strong></td><td>1 vez (frase inteira)</td><td>N vezes (1 token por vez)</td></tr>
+  <tr><td><strong>Exemplos</strong></td><td><strong>BERT</strong> (encoder-only)</td><td><strong>GPT</strong> (decoder-only), Transformer original</td></tr>
+</table>
 
 <h4>Conexões</h4>
 <ul>
   <li><strong>Todos os 3 tipos usam <a href="#multi-head">Multi-Head Attention</a></strong> (8 cabeças). A diferença está apenas na origem de Q/K/V e na presença de máscara — a estrutura interna é idêntica</li>
-  <li><strong>GPT (decoder-only):</strong> remove o encoder e a cross-attention. Só tem masked self-attention. Cada token só vê os anteriores</li>
-  <li><strong>BERT (encoder-only):</strong> remove o decoder. Só tem self-attention bidirecional (sem máscara). Ideal para tarefas de compreensão</li>
+  <li><strong>GPT (decoder-only):</strong> remove o encoder e a cross-attention. Só tem masked self-attention</li>
+  <li><strong>BERT (encoder-only):</strong> remove o decoder. Só tem self-attention bidirecional (sem máscara)</li>
   <li><strong>Evolução natural:</strong> a masked self-attention do decoder é o gargalo na inferência → <a href="#multi-query">MQA</a> e <a href="#grouped-query">GQA</a> otimizam isso compartilhando K,V entre cabeças</li>
   <li><strong>KV-cache:</strong> na inferência do decoder, K e V de tokens passados são reusados — evita recomputar atenção para o passado inteiro</li>
 </ul>
