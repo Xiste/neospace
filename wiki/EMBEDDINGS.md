@@ -14,11 +14,11 @@ Em vez de listar todas as palavras do mundo (one-hot), descreva uma palavra por 
 **Analogia:** Ficha de biblioteca com 512 campos (gênero, tema, época, dificuldade...) vs. uma prateleira exclusiva por livro.
 
 ## Como Funciona
-1. Token ID `t` indexa a linha `t` da matriz de embedding `E` (|V| × d_model)
+1. Token ID `t` indexa a linha `t` da matriz de embedding `E` (|V| × [d_model](GLOSSARIO.md#d_model-d_k-d_v-d_ff--a-notação-de-dimensões-do-transformer))
 2. O vetor resultante (512 dims) é multiplicado por √d_model ≈ 22.6
 3. Isso equilibra a magnitude com o positional encoding (±1)
 
-A matriz E é inicializada aleatoriamente (N(0, 1/d_model)) e **aprendida** durante o treino.
+A matriz E é inicializada aleatoriamente (N(0, 1/[d_model](GLOSSARIO.md#d_model-d_k-d_v-d_ff--a-notação-de-dimensões-do-transformer))) e **aprendida** durante o treino.
 
 ## Matemática
 - **Matriz de embedding:** E ∈ ℝ^{|V| × d_model}
@@ -27,9 +27,9 @@ A matriz E é inicializada aleatoriamente (N(0, 1/d_model)) e **aprendida** dura
 - **Weight tying:** mesma E usada no encoder, decoder e projeção pré-softmax
 
 ## Impacto Prático
-- **Parâmetros:** 37K × 512 = ~19M floats ≈ 76 MB (float32)
+- **Parâmetros:** 37K × 512 = ~19M floats ≈ 76 MB ([float32](GLOSSARIO.md#fp16-bf16-fp32-fp8--formatos-de-ponto-flutuante))
 - **GPT-3:** 50K × 12.288 = 614M parâmetros ≈ 2.5 GB só nos embeddings
-- Lookup é O(1) por token — operação extremamente rápida na GPU
+- Lookup é [O(1)](GLOSSARIO.md#notação-big-o--on²-on-o1) por token — operação extremamente rápida na GPU
 
 ## Pré-requisitos
 - [Tokenização](TOKENIZACAO.md) — cada token é um ID inteiro antes do embedding

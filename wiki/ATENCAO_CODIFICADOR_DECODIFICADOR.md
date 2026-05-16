@@ -24,7 +24,7 @@ Um tradutor humano usa 3 operações mentais:
 ### 2. Decoder Masked Self-Attention
 - Q, K, V vêm da mesma fonte (camada anterior do decoder)
 - Máscara triangular: token na posição i só atende a tokens nas posições ≤ i
-- Função: preservar a propriedade auto-regressiva (cada token é gerado um por um)
+- Função: preservar a propriedade [auto-regressiva](GLOSSARIO.md#auto-regressivo) (cada token é gerado um por um)
 
 ### 3. Cross-Attention (Encoder-Decoder)
 - Q vem do decoder, K e V vêm do encoder

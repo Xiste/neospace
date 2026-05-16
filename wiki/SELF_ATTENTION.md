@@ -16,8 +16,8 @@ Imagine uma sala de aula onde cada aluno (token) tem uma **Query** ("o que eu qu
 ## Como Funciona
 1. **Projeção:** X (n×512) × W_Q, W_K, W_V → Q, K, V (cada n×64)
 2. **Scores:** Q × Kᵀ → matriz n×n (quanto cada token presta atenção em cada outro)
-3. **Escala:** divide por √d_k = 8 (mantém variância ~1 para softmax saudável)
-4. **Softmax:** normaliza cada linha para soma = 1
+3. **Escala:** divide por √[d_k](GLOSSARIO.md#d_model-d_k-d_v-d_ff--a-notação-de-dimensões-do-transformer) = 8 (mantém variância ~1 para [softmax](GLOSSARIO.md#softmax) saudável)
+4. **[Softmax](GLOSSARIO.md#softmax):** normaliza cada linha para soma = 1
 5. **Saída:** multiplica pesos de atenção pelos Values
 
 ## Matemática
@@ -25,9 +25,9 @@ Imagine uma sala de aula onde cada aluno (token) tem uma **Query** ("o que eu qu
 $$\text{Attention}(Q, K, V) = \text{softmax}\left(\frac{QK^T}{\sqrt{d_k}}\right)V$$
 
 - Q = X·W_Q, K = X·W_K, V = X·W_V
-- W_Q, W_K ∈ ℝ^{d_model × d_k}, W_V ∈ ℝ^{d_model × d_v}
-- d_k = d_v = 64 (para h=8 cabeças)
-- Complexidade: O(n²·d_k) — dominada pelo produto QKᵀ
+- W_Q, W_K ∈ ℝ^{[d_model](GLOSSARIO.md#d_model-d_k-d_v-d_ff--a-notação-de-dimensões-do-transformer) × [d_k](GLOSSARIO.md#d_model-d_k-d_v-d_ff--a-notação-de-dimensões-do-transformer)}, W_V ∈ ℝ^{[d_model](GLOSSARIO.md#d_model-d_k-d_v-d_ff--a-notação-de-dimensões-do-transformer) × [d_v](GLOSSARIO.md#d_model-d_k-d_v-d_ff--a-notação-de-dimensões-do-transformer)}
+- [d_k](GLOSSARIO.md#d_model-d_k-d_v-d_ff--a-notação-de-dimensões-do-transformer) = [d_v](GLOSSARIO.md#d_model-d_k-d_v-d_ff--a-notação-de-dimensões-do-transformer) = 64 (para h=8 cabeças)
+- Complexidade: [O(n²·d)](GLOSSARIO.md#notação-big-o--on²-on-o1) — dominada pelo produto QKᵀ
 
 O fator 1/√d_k é crucial: sem ele, produtos escalares grandes saturam o softmax, matando o gradiente.
 

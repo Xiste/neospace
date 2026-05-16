@@ -175,6 +175,54 @@
   /* Hamburger */
   .hamburger { display: none; position: fixed; top: 12px; left: 12px; z-index: 300; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; cursor: pointer; color: var(--text); font-size: 18px; }
 
+  /* Quiz */
+  .quiz-section {
+    background: rgba(63,185,80,0.04); border: 1px solid rgba(63,185,80,0.2);
+    border-radius: 8px; padding: 16px 20px; margin-top: 20px;
+  }
+  .quiz-section h4 { color: var(--accent2); margin: 0 0 12px; font-size: 14px; }
+  .quiz-item {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 6px 0; cursor: pointer; font-size: 13px; color: var(--muted);
+    transition: color 0.2s;
+  }
+  .quiz-item:hover { color: var(--text); }
+  .quiz-item input[type="checkbox"] {
+    appearance: none; -webkit-appearance: none;
+    width: 18px; height: 18px; flex-shrink: 0;
+    border: 2px solid var(--border); border-radius: 4px;
+    background: var(--bg); cursor: pointer; margin-top: 1px;
+    transition: all 0.2s;
+  }
+  .quiz-item input[type="checkbox"]:checked {
+    background: var(--accent2); border-color: var(--accent2);
+    box-shadow: 0 0 8px rgba(63,185,80,0.3);
+  }
+  .quiz-item input[type="checkbox"]:checked::after {
+    content: '✓'; display: block; text-align: center;
+    color: #000; font-size: 12px; font-weight: 700; line-height: 14px;
+  }
+  .quiz-item:has(input:checked) { color: var(--text); }
+  .quiz-progress-bar {
+    height: 4px; background: var(--border); border-radius: 2px; margin-top: 12px;
+    overflow: hidden;
+  }
+  .quiz-progress-bar .fill {
+    height: 100%; background: var(--accent2); border-radius: 2px;
+    transition: width 0.3s;
+  }
+  .quiz-stats {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-top: 6px; font-size: 11px; color: var(--muted);
+  }
+  .quiz-stats .pct { color: var(--accent2); font-weight: 600; }
+  .quiz-global {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 12px 16px; margin-top: 12px;
+  }
+  .quiz-global h4 { font-size: 12px; color: var(--muted); margin: 0 0 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .quiz-global .big-pct { font-size: 32px; font-weight: 700; color: var(--accent2); }
+
   @media (max-width: 768px) {
     .sidebar { transform: translateX(-100%); transition: transform 0.25s; width: 100%; max-width: 300px; }
     .sidebar.open { transform: translateX(0); }
@@ -275,6 +323,7 @@
       <div class="hero-stat"><div class="num">25</div><div class="label">Tópicos na trilha</div></div>
       <div class="hero-stat"><div class="num">9</div><div class="label">Dominados</div></div>
       <div class="hero-stat"><div class="num">36%</div><div class="label">Progresso</div></div>
+      <div class="hero-stat"><div class="num" id="quizGlobalPct">0%</div><div class="label">Quiz Respondido</div></div>
     </div>
   </section>
 
@@ -371,6 +420,17 @@ RESULTADO: "gatos" (palavra nova!) → gat o s
   <li>Se o vocabulário BPE for muito pequeno (ex: 1000 tokens), qual problema acontece? E se for muito grande (ex: 1 milhão)?</li>
 </ol>
 <p><strong>Exercício:</strong> Pense na palavra "paralelepípedo". Como o BPE provavelmente a tokenizaria em português? Que subpalavras emergiriam?</p>
+
+<div class="quiz-section" data-topic="tokenizacao">
+  <h4>Checkpoint — Marque o que voce sabe responder</h4>
+  <label class="quiz-item"><input type="checkbox"> Por que nao usamos palavras inteiras como tokens? De 2 motivos concretos</label>
+  <label class="quiz-item"><input type="checkbox"> Qual a diferenca entre tokenizacao word-level, character-level e subword?</label>
+  <label class="quiz-item"><input type="checkbox"> Explicar o algoritmo BPE com minhas proprias palavras</label>
+  <label class="quiz-item"><input type="checkbox"> Por que "gatinho" e "gatos" compartilham tokens no BPE?</label>
+  <label class="quiz-item"><input type="checkbox"> O que acontece se o vocabulario for muito pequeno? E muito grande?</label>
+  <div class="quiz-progress-bar"><div class="fill"></div></div>
+  <div class="quiz-stats"><span>Auto-avaliacao</span><span class="pct">0%</span></div>
+</div>
         </div>
       </div>
     </article>
@@ -447,6 +507,17 @@ Exemplo:
   <li>Por que a inicialização dos embeddings importa? O que aconteceria se todos começassem com zeros?</li>
 </ol>
 <p><strong>Exercício:</strong> Se "rei - homem + mulher ≈ rainha", qual operação você esperaria para "presente - passado + futuro"? O que isso revela sobre o espaço de embeddings?</p>
+
+<div class="quiz-section" data-topic="embeddings">
+  <h4>Checkpoint — Marque o que voce sabe responder</h4>
+  <label class="quiz-item"><input type="checkbox"> O que e um embedding e por que ele e melhor que one-hot encoding?</label>
+  <label class="quiz-item"><input type="checkbox"> Por que o Transformer multiplica os embeddings por √d_model?</label>
+  <label class="quiz-item"><input type="checkbox"> O que e weight tying e por que ele e usado?</label>
+  <label class="quiz-item"><input type="checkbox"> Quantos parametros tem a matriz de embedding para |V|=37K e d_model=512?</label>
+  <label class="quiz-item"><input type="checkbox"> Por que a inicializacao dos embeddings importa?</label>
+  <div class="quiz-progress-bar"><div class="fill"></div></div>
+  <div class="quiz-stats"><span>Auto-avaliacao</span><span class="pct">0%</span></div>
+</div>
         </div>
       </div>
     </article>
@@ -554,6 +625,17 @@ Complexidade: O(n²·d) — dominada pelo produto Q·Kᵀ</code></pre></div>
   <li>Por que a self-attention captura dependências de longo alcance melhor que uma RNN? Use o argumento do "comprimento do caminho"</li>
 </ol>
 <p><strong>Exercício:</strong> Desenhe a matriz de atenção para "O gato que viu o cachorro fugiu". Qual token "fugiu" deveria prestar mais atenção? Existe ambiguidade? Como a atenção resolve?</p>
+
+<div class="quiz-section" data-topic="self-attention">
+  <h4>Checkpoint — Marque o que voce sabe responder</h4>
+  <label class="quiz-item"><input type="checkbox"> O que significam Query, Key e Value? Dar a analogia com minhas palavras</label>
+  <label class="quiz-item"><input type="checkbox"> Por que dividimos QK^T por √d_k? O que acontece se nao dividirmos?</label>
+  <label class="quiz-item"><input type="checkbox"> Por que a complexidade e O(n²·d)? Qual parte domina?</label>
+  <label class="quiz-item"><input type="checkbox"> O que significa um peso de atencao 0.95 na posicao (i=3, j=7)?</label>
+  <label class="quiz-item"><input type="checkbox"> Por que self-attention captura dependencias longas melhor que RNN?</label>
+  <div class="quiz-progress-bar"><div class="fill"></div></div>
+  <div class="quiz-stats"><span>Auto-avaliacao</span><span class="pct">0%</span></div>
+</div>
         </div>
       </div>
     </article>
@@ -638,6 +720,17 @@ O número total de multiplicações é idêntico. A diferença é que 8 cabeças
   <li>O paper mostra que cabeça única perde 0.9 BLEU, mas cabeças demais também pioram. Qual o trade-off?</li>
 </ol>
 <p><strong>Exercício:</strong> Se d_model = 1024, quantas cabeças você usaria? Qual seria d_k? Justifique com base no trade-off entre número de cabeças e dimensionalidade.</p>
+
+<div class="quiz-section" data-topic="multi-head">
+  <h4>Checkpoint — Marque o que voce sabe responder</h4>
+  <label class="quiz-item"><input type="checkbox"> Por que usar 8 cabecas em vez de 1?</label>
+  <label class="quiz-item"><input type="checkbox"> Explicar por que o custo de 8 cabecas (d_k=64) e similar a 1 cabeca (d_k=512)</label>
+  <label class="quiz-item"><input type="checkbox"> Qual o papel da matriz W_O?</label>
+  <label class="quiz-item"><input type="checkbox"> O que uma cabeca com atencao sempre uniforme indicaria?</label>
+  <label class="quiz-item"><input type="checkbox"> Por que cabeca unica e cabecas demais sao ambas piores que h=8?</label>
+  <div class="quiz-progress-bar"><div class="fill"></div></div>
+  <div class="quiz-stats"><span>Auto-avaliacao</span><span class="pct">0%</span></div>
+</div>
         </div>
       </div>
     </article>
@@ -732,6 +825,17 @@ Não tem máscara — o decoder pode ver o encoder inteiro</code></pre></div>
   <li>O que aconteceria se a cross-attention usasse Q do encoder em vez do decoder?</li>
 </ol>
 <p><strong>Exercício:</strong> Desenhe as 3 matrizes de atenção para traduzir "I love you" → "Eu amo você". Identifique quais conexões provavelmente terão pesos altos em cada matriz.</p>
+
+<div class="quiz-section" data-topic="tipos-atencao">
+  <h4>Checkpoint — Marque o que voce sabe responder</h4>
+  <label class="quiz-item"><input type="checkbox"> Por que o decoder precisa de mascara na self-attention?</label>
+  <label class="quiz-item"><input type="checkbox"> Qual a diferenca entre self-attention e cross-attention?</label>
+  <label class="quiz-item"><input type="checkbox"> Por que a cross-attention NAO tem mascara?</label>
+  <label class="quiz-item"><input type="checkbox"> GPT (decoder-only) usa quais tipos de atencao? E BERT (encoder-only)?</label>
+  <label class="quiz-item"><input type="checkbox"> O que aconteceria se a cross-attention usasse Q do encoder em vez do decoder?</label>
+  <div class="quiz-progress-bar"><div class="fill"></div></div>
+  <div class="quiz-stats"><span>Auto-avaliacao</span><span class="pct">0%</span></div>
+</div>
         </div>
       </div>
     </article>
@@ -855,6 +959,17 @@ Por que SOMAR e não CONCATENAR?
   <li>Por que as frequências formam progressão geométrica (10000^(2i/d)) e não aritmética (1, 2, 3...)?</li>
 </ol>
 <p><strong>Exercício:</strong> Calcule no papel PE(0) e PE(1) para as primeiras 4 dimensões (i=0 e i=1). Compare os valores. O que você observa sobre dimensões pares vs ímpares?</p>
+
+<div class="quiz-section" data-topic="positional-encoding">
+  <h4>Checkpoint — Marque o que voce sabe responder</h4>
+  <label class="quiz-item"><input type="checkbox"> Por que o Transformer precisa de positional encoding? O que aconteceria sem ele?</label>
+  <label class="quiz-item"><input type="checkbox"> Por que usar senos e cossenos de diferentes frequencias em vez do numero da posicao?</label>
+  <label class="quiz-item"><input type="checkbox"> Por que o PE e SOMADO ao embedding e nao concatenado?</label>
+  <label class="quiz-item"><input type="checkbox"> O que significa que PE(pos+k) pode ser expresso como funcao linear de PE(pos)?</label>
+  <label class="quiz-item"><input type="checkbox"> Por que as frequencias formam progressao geometrica e nao aritmetica?</label>
+  <div class="quiz-progress-bar"><div class="fill"></div></div>
+  <div class="quiz-stats"><span>Auto-avaliacao</span><span class="pct">0%</span></div>
+</div>
         </div>
       </div>
     </article>
@@ -971,6 +1086,17 @@ Modelos modernos (GPT, LLaMA) usam "pré-norm" (LayerNorm ANTES).</code></pre></
   <li>Por que modelos modernos preferem pré-norm a pós-norm? Qual a implicação para estabilidade do treino?</li>
 </ol>
 <p><strong>Exercício:</strong> Se a conexão residual permite pular qualquer camada, por que não treinar um Transformer com 1000 camadas? Qual o novo gargalo que aparece?</p>
+
+<div class="quiz-section" data-topic="ffn-residual">
+  <h4>Checkpoint — Marque o que voce sabe responder</h4>
+  <label class="quiz-item"><input type="checkbox"> Qual a funcao da conexao residual?</label>
+  <label class="quiz-item"><input type="checkbox"> Por que a FFN expande para 2048 e depois contrai?</label>
+  <label class="quiz-item"><input type="checkbox"> Qual a diferenca entre BatchNorm e LayerNorm?</label>
+  <label class="quiz-item"><input type="checkbox"> Quantos parametros tem o modelo base (~65M)?</label>
+  <label class="quiz-item"><input type="checkbox"> Por que modelos modernos preferem pre-norm a pos-norm?</label>
+  <div class="quiz-progress-bar"><div class="fill"></div></div>
+  <div class="quiz-stats"><span>Auto-avaliacao</span><span class="pct">0%</span></div>
+</div>
         </div>
       </div>
     </article>
@@ -1092,6 +1218,17 @@ Batch: ~25.000 tokens (origem + destino)</code></pre></div>
   <li>Dobrando d_model de 512 para 1024 e d_ff de 2048 para 4096, quantos parâmetros o modelo teria aproximadamente? Como isso afetaria o tempo de treino?</li>
 </ol>
 <p><strong>Exercício final:</strong> Olhe para a equação completa do Transformer e identifique: qual peça é O(n²) e se torna o gargalo para contexto longo? Quais técnicas (estudadas ou não) podem reduzir esse gargalo?</p>
+
+<div class="quiz-section" data-topic="transformer-completo">
+  <h4>Checkpoint — Marque o que voce sabe responder</h4>
+  <label class="quiz-item"><input type="checkbox"> Quantas camadas tem o encoder e decoder do Transformer base? E dimensoes?</label>
+  <label class="quiz-item"><input type="checkbox"> Por que o treino usa warmup nos primeiros 4000 passos?</label>
+  <label class="quiz-item"><input type="checkbox"> O que e label smoothing e por que ele melhora BLEU apesar de piorar perplexidade?</label>
+  <label class="quiz-item"><input type="checkbox"> Durante a inferencia, quantas vezes o encoder roda? E o decoder? Por que?</label>
+  <label class="quiz-item"><input type="checkbox"> Dobrando d_model para 1024 e d_ff para 4096, quantos parametros teria?</label>
+  <div class="quiz-progress-bar"><div class="fill"></div></div>
+  <div class="quiz-stats"><span>Auto-avaliacao</span><span class="pct">0%</span></div>
+</div>
         </div>
       </div>
     </article>
@@ -1406,6 +1543,18 @@ Saída: O, L (logsumexp)
   <li><a href="https://docs.nvidia.com/cuda/hopper-tuning-guide/" target="_blank">Guia CUDA Hopper</a></li>
 </ul>
 
+<div class="quiz-section" data-topic="flash-attention">
+  <h4>Checkpoint — Marque o que voce sabe responder</h4>
+  <label class="quiz-item"><input type="checkbox"> Calcular bytes lidos/escritos na HBM para N=4096, d=128, FP16. Comparar com FA</label>
+  <label class="quiz-item"><input type="checkbox"> Por que e^(m_velho - m_novo) e necessario no online softmax?</label>
+  <label class="quiz-item"><input type="checkbox"> Explicar por que recalcular S e P no backward e mais rapido que salvar da HBM</label>
+  <label class="quiz-item"><input type="checkbox"> Qual a diferenca entre o split-K do FA1 e o particionamento do FA2?</label>
+  <label class="quiz-item"><input type="checkbox"> Por que a funcao exponencial e o gargalo no FA3 com FP8?</label>
+  <label class="quiz-item"><input type="checkbox"> Como o incoherent processing permite FP8 com baixo erro no FA3?</label>
+  <label class="quiz-item"><input type="checkbox"> Com H100, N=32768, d=128 — qual versao do FA usar e por que?</label>
+  <div class="quiz-progress-bar"><div class="fill"></div></div>
+  <div class="quiz-stats"><span>Auto-avaliacao</span><span class="pct">0%</span></div>
+</div>
         </div>
       </div>
     </article>
@@ -1878,6 +2027,67 @@ function closeSidebar() {
 }
 
 updateActiveLink();
+
+// ── Quiz System ──────────────────────────────────────────────
+const QUIZ_KEY = 'neospace_quiz';
+let quizState = {};
+
+// Load saved state
+try {
+  quizState = JSON.parse(localStorage.getItem(QUIZ_KEY)) || {};
+} catch(e) { quizState = {}; }
+
+function saveQuiz() {
+  localStorage.setItem(QUIZ_KEY, JSON.stringify(quizState));
+}
+
+function updateQuizProgress() {
+  let totalChecked = 0;
+  let totalQuestions = 0;
+
+  document.querySelectorAll('.quiz-section').forEach(section => {
+    const topicId = section.dataset.topic;
+    const checkboxes = section.querySelectorAll('input[type="checkbox"]');
+    let checked = 0;
+    checkboxes.forEach(cb => { if (cb.checked) checked++; });
+    totalChecked += checked;
+    totalQuestions += checkboxes.length;
+
+    // Update per-topic bar
+    const bar = section.querySelector('.quiz-progress-bar .fill');
+    const pct = section.querySelector('.quiz-stats .pct');
+    if (bar) bar.style.width = checkboxes.length ? (checked / checkboxes.length * 100) + '%' : '0%';
+    if (pct) pct.textContent = checkboxes.length ? Math.round(checked / checkboxes.length * 100) + '%' : '0%';
+
+    // Save state
+    if (!quizState[topicId]) quizState[topicId] = {};
+    checkboxes.forEach((cb, i) => { quizState[topicId][i] = cb.checked; });
+  });
+  saveQuiz();
+
+  // Update global
+  const globalPct = document.getElementById('quizGlobalPct');
+  if (globalPct) {
+    globalPct.textContent = totalQuestions ? Math.round(totalChecked / totalQuestions * 100) + '%' : '0%';
+  }
+}
+
+// Restore state and bind events
+document.querySelectorAll('.quiz-section').forEach(section => {
+  const topicId = section.dataset.topic;
+  const checkboxes = section.querySelectorAll('input[type="checkbox"]');
+  checkboxes.forEach((cb, i) => {
+    // Restore
+    if (quizState[topicId] && quizState[topicId][i]) cb.checked = true;
+    // Bind
+    cb.addEventListener('change', updateQuizProgress);
+    // Click on label toggles checkbox
+    cb.closest('.quiz-item').addEventListener('click', function(e) {
+      if (e.target.tagName !== 'INPUT') { cb.checked = !cb.checked; updateQuizProgress(); }
+    });
+  });
+  updateQuizProgress();
+});
 </script>
 
 </body>

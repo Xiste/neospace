@@ -6,7 +6,7 @@ Uma única função de atenção precisa capturar relações sintáticas, semân
 ## Contexto Histórico
 - **Atenção de Bahdanau (2014) e Luong (2015):** uma única função de atenção
 - **Transformer (2017):** propõe h=8 atenções em paralelo, cada uma com seus próprios W_Q, W_K, W_V
-- **Linha A (Tabela 3):** cabeça única perde 0.9 BLEU; cabeças demais também pioram → ponto ótimo em h=8
+- **Linha A (Tabela 3):** cabeça única perde 0.9 [BLEU](GLOSSARIO.md#bleu-bilingual-evaluation-understudy); cabeças demais também pioram → ponto ótimo em h=8
 
 ## Intuição Central
 Em vez de UM perito analisando a cena do crime, chame 8 especialistas: um de digitais, um de balística, um de DNA, um de documentos... Cada um olha a mesma cena com ferramentas diferentes. Depois, junte todos os laudos.
@@ -28,14 +28,14 @@ $$\text{MultiHead}(Q, K, V) = \text{Concat}(\text{head}_1, ..., \text{head}_h)W^
 $$\text{head}_i = \text{Attention}(QW^Q_i, KW^K_i, VW^V_i)$$
 
 - h = 8 cabeças
-- d_k = d_v = d_model/h = 512/8 = 64
+- [d_k](GLOSSARIO.md#d_model-d_k-d_v-d_ff--a-notação-de-dimensões-do-transformer) = [d_v](GLOSSARIO.md#d_model-d_k-d_v-d_ff--a-notação-de-dimensões-do-transformer) = [d_model](GLOSSARIO.md#d_model-d_k-d_v-d_ff--a-notação-de-dimensões-do-transformer)/h = 512/8 = 64
 - W_Q_i, W_K_i ∈ ℝ^{512×64}, W_V_i ∈ ℝ^{512×64}
 - W_O ∈ ℝ^{512×512}
 
 ## Impacto Prático
 - Cabeças descobrem padrões interpretáveis sozinhas: sintaxe, correferência, adjacência
 - Exemplo real: "its" atende fortemente a "The Law" — o modelo aprendeu correferência sem supervisão explícita
-- Dropout (p=0.1) nos pesos de atenção evita dependência excessiva de uma única cabeça
+- [Dropout](GLOSSARIO.md#dropout) (p=0.1) nos pesos de atenção evita dependência excessiva de uma única cabeça
 
 ## Pré-requisitos
 - [Self-Attention](SELF_ATTENTION.md) — cada cabeça é uma self-attention independente

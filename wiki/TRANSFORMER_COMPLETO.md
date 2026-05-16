@@ -4,8 +4,8 @@
 Como substituir completamente RNNs e CNNs em tradução automática por um mecanismo puramente baseado em atenção, alcançando melhor qualidade em menos tempo de treino?
 
 ## Contexto Histórico
-- **Pré-2017:** estado da arte em tradução usava ensembles de RNNs com atenção. Treino levava semanas. Melhor resultado EN→DE: ~26 BLEU.
-- **Transformer (Vaswani et al., 2017):** primeiro modelo de transdução puramente baseado em atenção. 28.4 BLEU em EN→DE (modelo único), 41.0 BLEU em EN→FR, treinado em 3.5 dias com 8 GPUs P100.
+- **Pré-2017:** estado da arte em tradução usava [ensembles](GLOSSARIO.md#ensemble) de RNNs com atenção. Treino levava semanas. Melhor resultado EN→DE: ~26 [BLEU](GLOSSARIO.md#bleu-bilingual-evaluation-understudy).
+- **Transformer (Vaswani et al., 2017):** primeiro modelo de transdução puramente baseado em atenção. 28.4 [BLEU](GLOSSARIO.md#bleu-bilingual-evaluation-understudy) em EN→DE (modelo único), 41.0 [BLEU](GLOSSARIO.md#bleu-bilingual-evaluation-understudy) em EN→FR, treinado em 3.5 dias com 8 GPUs P100.
 
 ## Arquitetura Completa
 
@@ -37,7 +37,7 @@ Cada camada = Masked Self-Attention (Multi-Head, 8) + Cross-Attention + FFN, tod
 
 ## Treinamento
 
-**Função de perda:** Cross-entropy sobre o vocabulário, com label smoothing (0.1).
+**Função de perda:** [Cross-entropy](GLOSSARIO.md#cross-entropy-entropia-cruzada) sobre o vocabulário, com [label smoothing](GLOSSARIO.md#label-smoothing) (0.1).
 
 **Learning rate com warmup:**
 $$lr = d_{model}^{-0.5} \cdot \min(step\_num^{-0.5}, step\_num \cdot warmup\_steps^{-1.5})$$
@@ -46,13 +46,13 @@ $$lr = d_{model}^{-0.5} \cdot \min(step\_num^{-0.5}, step\_num \cdot warmup\_ste
 - Decaimento (4000+ steps): lr ∝ 1/√step
 
 **Regularização:**
-- Dropout (p=0.1): após cada sub-camada, nos embeddings, nos pesos de atenção
-- Label smoothing (ε=0.1): evita overfitting, melhora BLEU apesar de piorar perplexidade
+- [Dropout](GLOSSARIO.md#dropout) (p=0.1): após cada sub-camada, nos embeddings, nos pesos de atenção
+- [Label smoothing](GLOSSARIO.md#label-smoothing) (ε=0.1): evita overfitting, melhora [BLEU](GLOSSARIO.md#bleu-bilingual-evaluation-understudy) apesar de piorar [perplexidade](GLOSSARIO.md#perplexity-perplexidade)
 
 ## Inferência
-- Beam search com tamanho 4
+- [Beam search](GLOSSARIO.md#beam-search) com tamanho 4
 - Penalidade de comprimento α=0.6
-- Encoder roda 1 vez, decoder roda N vezes (auto-regressivo)
+- Encoder roda 1 vez, decoder roda N vezes ([auto-regressivo](GLOSSARIO.md#auto-regressivo))
 
 ## Distribuição de Parâmetros (~65M total)
 

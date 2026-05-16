@@ -4,7 +4,7 @@
 Como empilhar muitas camadas sem sofrer com gradiente evanescente, e como cada token processa individualmente a informação após a atenção?
 
 ## Contexto Histórico
-- **Pré-2015:** redes profundas eram instáveis — gradiente sumia nas primeiras camadas
+- **Pré-2015:** redes profundas eram instáveis — [gradiente](GLOSSARIO.md#gradiente-e-backpropagation) sumia nas primeiras camadas (gradiente evanescente)
 - **ResNet (He et al., 2015):** introduz conexões residuais (skip connections) — F(x) + x
 - **BatchNorm (Ioffe & Szegedy, 2015):** normaliza ativações, mas depende do batch
 - **Transformer:** adota residual + LayerNorm (independe do batch, ideal para sequências)
@@ -25,8 +25,8 @@ x → SubLayer(x) → Dropout → + x (residual) → LayerNorm → saída
 ```
 
 **Feed-Forward Network:**
-$$FFN(x) = ReLU(xW_1 + b_1)W_2 + b_2$$
-- W₁: 512×2048, W₂: 2048×512
+$$FFN(x) = \text{[ReLU](GLOSSARIO.md#relu-rectified-linear-unit)}(xW_1 + b_1)W_2 + b_2$$
+- W₁: 512×2048, W₂: 2048×512 ([d_model](GLOSSARIO.md#d_model-d_k-d_v-d_ff--a-notação-de-dimensões-do-transformer)=512, [d_ff](GLOSSARIO.md#d_model-d_k-d_v-d_ff--a-notação-de-dimensões-do-transformer)=2048)
 - Expansão 4×, depois contração
 
 **LayerNorm:**
