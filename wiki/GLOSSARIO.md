@@ -270,6 +270,35 @@ Big-O é uma notação matemática que descreve **como algo cresce** quando o ta
 
 ---
 
+## d_model, d_k, d_v, d_ff — A Notação de Dimensões do Transformer
+
+### O que é
+
+No paper do Transformer, todas as dimensões seguem a convenção `d_algumaCoisa`. O `d` vem de **dimension** (dimensão em inglês). Cada `d_` descreve o tamanho de um vetor ou matriz diferente na arquitetura:
+
+| Notação | Significado | Valor (Base) | Onde aparece |
+|---------|------------|-------------|-------------|
+| **d_model** | Dimension of the **model** — tamanho do vetor de embedding e de todas as camadas ocultas | **512** | Em tudo — embeddings, atenção, FFN, saída |
+| **d_k** | Dimension of the **Key** — tamanho do vetor de cada Key por cabeça | **64** (512/8) | Na self-attention: Q·Kᵀ |
+| **d_v** | Dimension of the **Value** — tamanho do vetor de cada Value por cabeça | **64** (512/8) | Na self-attention: pesos · V |
+| **d_ff** | Dimension of the **Feed-Forward** — tamanho da camada oculta da FFN | **2048** (512×4) | Na Feed-Forward Network |
+| **h** | Número de **heads** (cabeças) | **8** | Multi-Head Attention |
+| **N** | Número de **camadas** empilhadas | **6** | Encoder e Decoder |
+
+### Intuição
+
+Imagine uma fábrica com uma esteira de 512 cm de largura (d_model = 512). Tudo que passa pela fábrica — embeddings, atenção, FFN — tem exatamente 512 cm de largura. Quando a atenção divide o trabalho em 8 cabeças, cada cabeça recebe uma faixa de 64 cm (d_k = d_v = 512/8 = 64). A FFN expande para 2048 cm temporariamente (d_ff = 512×4) e depois contrai de volta para 512.
+
+**Por que 512?** É um número平衡ado (balanceado): grande o suficiente para capturar significado rico, pequeno o suficiente para caber em GPUs de 2017. Modelos modernos usam valores maiores: GPT-3 usa 12288, LLaMA-7B usa 4096.
+
+**A relação fundamental:** `d_k = d_v = d_model / h`. As dimensões não são números mágicos independentes — todas derivam de d_model e h.
+
+### Por que aparece em TODO lugar
+
+TODA equação do Transformer usa essas notações. Quando você vê `Q ∈ ℝ^(n × d_k)`, significa "Q é uma matriz com n linhas (tokens) e d_k colunas (64 dimensões por Key)". Quando vê `W_Q ∈ ℝ^(d_model × d_k)`, significa "W_Q projeta de 512 dimensões para 64 dimensões". Sem entender essa notação, as equações são ilegíveis.
+
+---
+
 ## FP16, BF16, FP32, FP8 — Formatos de Ponto Flutuante
 
 ### O que são

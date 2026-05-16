@@ -784,7 +784,32 @@ Onde:
 
 <p>Dimensões baixas (i pequeno) oscilam rápido — capturam posições vizinhas. Dimensões altas (i grande) oscilam devagar — capturam a região geral do token na sequência.</p>
 
-<p><strong>Por que seno E cosseno?</strong> Para qualquer offset k, PE(pos+k) pode ser derivado de PE(pos) como uma <strong>transformação linear</strong> (rotação). Isso permite que o modelo aprenda facilmente a atender por posições relativas ("a palavra 3 posições atrás"), não apenas absolutas.</p>
+<p><strong>Por que seno E cosseno especificamente?</strong> Porque a trigonometria tem uma propriedade especial: `sen(a+b)` e `cos(a+b)` podem ser reescritos como combinações lineares de `sen(a)`, `cos(a)`, `sen(b)` e `cos(b)`. Isso não vale para tangente, sigmoid ou outras funções.</p>
+
+<p>Essa propriedade permite que o modelo aprenda <strong>posições relativas</strong> ("estou a 3 tokens de distância de X"), não apenas absolutas ("sou o token 7"). É a razão matemática mais profunda do design senoidal.</p>
+
+<h4>Por que "PE(pos+k) é linear em PE(pos)" é a Chave de Tudo</h4>
+<p>Lembra das identidades trigonométricas?</p>
+<div class="code-block"><span class="lang-tag">Identidades do ensino médio que fazem o PE funcionar</span>
+<pre><code>sin(a + b) = sin(a)·cos(b) + cos(a)·sin(b)
+cos(a + b) = cos(a)·cos(b) − sin(a)·sin(b)</code></pre></div>
+
+<p>Agora aplica isso ao PE na posição <code>pos + k</code> para uma dimensão par 2i:</p>
+<div class="code-block"><span class="lang-tag">Passo a passo da mágica</span>
+<pre><code>PE(pos+k, 2i) = sin((pos + k) / 10000^(2i/d))
+               = sin(pos/10000^(2i/d) + k/10000^(2i/d))
+
+               = sin(pos/10000^(2i/d)) · cos(k/10000^(2i/d))
+               + cos(pos/10000^(2i/d)) · sin(k/10000^(2i/d))
+
+               = PE(pos, 2i) · A + PE(pos, 2i+1) · B
+
+Onde A = cos(k/10000^(2i/d)) e B = sin(k/10000^(2i/d))
+dependem APENAS de k (a distância), não de pos!</code></pre></div>
+
+<p><strong>Traduzindo para a prática:</strong> PE(pos+k) é uma combinação linear de PE(pos). Os coeficientes dependem apenas de <strong>k</strong> (distância), não de <strong>pos</strong> (posição absoluta). Isso significa que se o modelo aprende "atenção ao token que está a 3 posições de distância", essa mesma transformação funciona em QUALQUER lugar da sequência — pos=5, pos=100, ou pos=5000.</p>
+
+<p><strong>Analogia final:</strong> uma régua normal tem números absolutos (1, 2, 3...) — cada marcação é independente. Com PE senoidal, o "código" de cada posição é construído de forma que a distância entre duas posições é codificada diretamente na relação linear entre seus vetores. É como uma régua onde o padrão se repete, e o deslocamento de "+3 casas" é sempre a mesma operação matemática.</p>
 
 <div class="code-block"><span class="lang-tag">Visualização simplificada das primeiras dimensões</span>
 <pre><code>Dimensões →
@@ -1714,6 +1739,21 @@ Bloco 2: scores = [5, 0, 4]  ← novo máximo 5 > 3!
   <tr><td>O(n·d)</td><td>Linear em ambas dimensões</td><td>Multiplicar matriz n×d por vetor</td></tr>
 </table>
 <p><strong>Por que importa:</strong> o problema central da atenção é O(n²) em memória — se a sequência dobra, a memória quadruplica. Flash Attention reduz isso para O(n).</p>
+
+<!-- ===== d_model ===== -->
+<h4 id="glossario-dmodel">📏 d_model, d_k, d_v, d_ff — A Notação de Dimensões</h4>
+<p>No Transformer, toda dimensão segue a convenção <code>d_algumaCoisa</code>. O <code>d</code> vem de <strong>dimension</strong> (dimensão):</p>
+<table>
+  <tr><th>Notação</th><th>Significado</th><th>Valor (Base)</th><th>Onde aparece</th></tr>
+  <tr><td><strong>d_model</strong></td><td>Dimension of the model — tamanho do embedding e camadas ocultas</td><td><strong>512</strong></td><td>Em tudo — embeddings, atenção, FFN, saída</td></tr>
+  <tr><td><strong>d_k</strong></td><td>Dimension of the Key — tamanho de cada Key por cabeça</td><td><strong>64</strong> (=512/8)</td><td>Q·Kᵀ na atenção</td></tr>
+  <tr><td><strong>d_v</strong></td><td>Dimension of the Value — tamanho de cada Value por cabeça</td><td><strong>64</strong> (=512/8)</td><td>Pesos·V na atenção</td></tr>
+  <tr><td><strong>d_ff</strong></td><td>Dimension of the Feed-Forward — tamanho da FFN oculta</td><td><strong>2048</strong> (=512×4)</td><td>Feed-Forward Network</td></tr>
+  <tr><td><strong>h</strong></td><td>Número de heads (cabeças)</td><td><strong>8</strong></td><td>Multi-Head Attention</td></tr>
+</table>
+<p><strong>Relação fundamental:</strong> <code>d_k = d_v = d_model / h = 512/8 = 64</code>. As dimensões não são números mágicos — todas derivam de d_model e h.</p>
+<p><strong>Analogia da fábrica:</strong> uma esteira de 512 cm de largura (d_model). Tudo que passa — embeddings, atenção, FFN — tem 512 cm. A atenção divide em 8 faixas de 64 cm (d_k, d_v). A FFN expande para 2048 cm temporariamente e contrai de volta.</p>
+<p><strong>Modelos modernos:</strong> GPT-3 usa d_model=12288, LLaMA-7B usa 4096. O valor dobra/escala conforme o modelo cresce.</p>
 
 <!-- ===== FP16/BF16/FP32/FP8 ===== -->
 <h4 id="glossario-fp">💾 FP16, BF16, FP32, FP8 — Formatos de Ponto Flutuante</h4>
