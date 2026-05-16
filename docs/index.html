@@ -1801,63 +1801,589 @@ Softmax → "&lt;/s&gt;" (0.38) — token de fim. Geracao concluida.</code></pre
         </div>
         <div class="topic-body">
 <h4>Sobre Este Guia</h4>
-<p>Implementação COMPLETA do Transformer em PyTorch, linha por linha, assumindo <strong>zero conhecimento de PyTorch</strong>. Cada função (<code>nn.Linear</code>, <code>.transpose()</code>, <code>.view()</code>, <code>torch.matmul</code>) é explicada na primeira vez que aparece.</p>
+<p>Este guia assume que você <strong>nunca usou PyTorch</strong>. Cada função, cada parâmetro, cada <code>dim=</code> e cada <code>.view()</code> será explicado. Você vai desde "o que é um tensor" até ter um Transformer completo capaz de gerar texto.</p>
+<p>O código aqui é feito para ser executado no <strong>Google Colab</strong> (gratuito, GPU T4) ou em qualquer computador com Python 3.8+.</p>
+<p><strong>Pré-requisitos da trilha Neospace:</strong> todos os 8 fundamentos até <a href="TRANSFORMER_COMPLETO.md">Transformer Completo</a>.</p>
+<hr>
+<h4>Parte 0 — O Que É PyTorch?</h4>
+<p>PyTorch é uma biblioteca Python que faz duas coisas:</p>
+<p><strong>1. Tensores (= arrays multidimensionais que rodam na GPU):</strong></p>
+<div class="code-block"><span class="lang-tag">Python</span>
+<pre><code>import torch
+x = torch.tensor([1.0, 2.0, 3.0])  # vetor de 3 números
+M = torch.randn(3, 512)            # matriz 3×512 com números aleatórios</code></pre></div>
+<p>Um <strong>tensor</strong> é como uma lista Python, mas com superpoderes: pode ter dezenas de dimensões, rodar na GPU, e calcular gradientes automaticamente.</p>
+<p><strong>2. Autograd (= derivadas automáticas):</strong></p>
+<p>Quando você faz <code>y = f(x)</code>, o PyTorch consegue calcular <code>dy/dx</code> sozinho. Isso é o que permite treinar redes neurais: você define a rede, calcula o erro, e o PyTorch calcula como ajustar cada peso.</p>
+<p><strong>3. nn.Module (= bloco de construção):</strong></p>
+<p>Toda rede neural em PyTorch herda de <code>nn.Module</code>. É uma classe Python com dois métodos principais:</p>
+<div class="code-block"><span class="lang-tag">Python</span>
+<pre><code>class MeuModelo(nn.Module):
+    def __init__(self):    # CONSTRUTOR: define as peças (camadas)
+        super().__init__()
+        self.linear = nn.Linear(512, 512)  # uma camada linear
 
-<h4>Estrutura do Código</h4>
-<div class="code-block"><span class="lang-tag">Hierarquia de classes do Transformer</span>
-<pre><code>Transformer (~65M parametros)
-├── Encoder (6 camadas)
-│   ├── Embeddings (|V| x 512, lookup)
-│   ├── PositionalEncoding (senos/cossenos)
-│   └── EncoderLayer x 6
-│       ├── MultiHeadAttention (8 cabecas, Q=K=V=encoder)
-│       └── FeedForward (512→2048→512 + ReLU)
-│
-├── Decoder (6 camadas)
-│   ├── Embeddings (compartilhada com encoder)
-│   └── DecoderLayer x 6
-│       ├── Masked MultiHeadAttention (Q=K=V=decoder)
-│       ├── Cross MultiHeadAttention (Q=dec, K,V=enc)
-│       └── FeedForward
-│
-└── Projecao Final (Linear 512→|V|, pesos compartilhados)</code></pre></div>
+    def forward(self, x):  # FORWARD: como os dados fluem pelas peças
+        return self.linear(x)</code></pre></div>
+<p><strong>Regra de ouro:</strong> <code>__init__</code> define QUAIS camadas existem. <code>forward</code> define COMO os dados passam por elas.</p>
+<hr>
+<h4>Parte 1 — Configurando o Ambiente</h4>
+<div class="code-block"><span class="lang-tag">Python</span>
+<pre><code>import torch
+import torch.nn as nn           # camadas prontas (Linear, LayerNorm, etc.)
+import torch.nn.functional as F  # funções sem peso (softmax, relu, etc.)
+import math                      # sqrt, sin, cos, etc.
 
-<h4>O Que Você Vai Aprender de PyTorch</h4>
-<table>
-  <tr><th>Conceito</th><th>Função</th><th>O que faz</th></tr>
-  <tr><td><strong>nn.Module</strong></td><td><code>class MeuModelo(nn.Module)</code></td><td>Bloco base de toda rede neural. __init__ define camadas, forward define fluxo</td></tr>
-  <tr><td><strong>nn.Linear</strong></td><td><code>nn.Linear(512, 2048)</code></td><td>Camada totalmente conectada: y = xW + b. Cria pesos aprendíveis</td></tr>
-  <tr><td><strong>nn.Embedding</strong></td><td><code>nn.Embedding(37K, 512)</code></td><td>Tabela de lookup: ID inteiro → vetor denso</td></tr>
-  <tr><td><strong>nn.LayerNorm</strong></td><td><code>nn.LayerNorm(512)</code></td><td>Normaliza por token: (x-μ)/σ * γ + β</td></tr>
-  <tr><td><strong>nn.Dropout</strong></td><td><code>nn.Dropout(0.1)</code></td><td>Zera 10% dos neurônios no treino. Não faz nada na inferência</td></tr>
-  <tr><td><strong>F.softmax</strong></td><td><code>F.softmax(x, dim=-1)</code></td><td>Converte scores em probabilidades. dim=-1 = normaliza última dimensão</td></tr>
-  <tr><td><strong>F.relu</strong></td><td><code>F.relu(x)</code></td><td>max(0, x). Zera negativos. Torna a rede não-linear</td></tr>
-  <tr><td><strong>.view()</strong></td><td><code>x.view(batch, -1, 8, 64)</code></td><td>Reorganiza dimensões sem copiar dados. -1 = calcula automático</td></tr>
-  <tr><td><strong>.transpose()</strong></td><td><code>x.transpose(1, 2)</code></td><td>Troca duas dimensões. Ex: (batch, seq, heads, d_k) → (batch, heads, seq, d_k)</td></tr>
-  <tr><td><strong>torch.matmul</strong></td><td><code>torch.matmul(Q, K.transpose(-2,-1))</code></td><td>Multiplicação de matrizes (batch). Q·K^T na atenção</td></tr>
-  <tr><td><strong>torch.tril</strong></td><td><code>torch.tril(torch.ones(3,3))</code></td><td>Triangular inferior. Cria máscara "só passado" para o decoder</td></tr>
-</table>
+# Verifica se tem GPU disponível (no Colab: Ambiente &gt; Acelerador &gt; GPU)
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print(f"Rodando em: {device}")</code></pre></div>
+<p><strong>O que cada import faz:</strong></p>
+<ul>
+<li><code>torch</code> — o framework principal (tensores, operações)</li>
+<li><code>torch.nn</code> (<code>nn</code>) — camadas que TEM parâmetros aprendíveis (pesos)</li>
+<li><code>torch.nn.functional</code> (<code>F</code>) — funções matemáticas que NÃO têm parâmetros (softmax, relu)</li>
+<li><code>torch.device</code> — diz se o código roda na CPU ou GPU</li>
+</ul>
+<hr>
+<h4>Parte 2 — Hiperparâmetros (Iguais ao Paper)</h4>
+<div class="code-block"><span class="lang-tag">Python</span>
+<pre><code>d_model = 512      # dimensão do embedding e de todas as camadas ocultas
+d_ff = 2048         # dimensão interna da FFN (4× d_model)
+h = 8               # número de cabeças de atenção
+d_k = d_model // h  # dimensão de cada Key por cabeça (512/8 = 64)
+d_v = d_model // h  # dimensão de cada Value por cabeça (512/8 = 64)
+N_encoder = 6       # número de camadas do encoder
+N_decoder = 6       # número de camadas do decoder
+vocab_size = 37000  # tamanho do vocabulário BPE
+max_len = 512       # comprimento máximo de sequência
+dropout_rate = 0.1  # probabilidade de dropout</code></pre></div>
+<p><strong>Por que <code>//</code> e não <code>/</code>?</strong> <code>//</code> é divisão inteira em Python. <code>512 / 8 = 64.0</code> (float), <code>512 // 8 = 64</code> (int). Dimensões precisam ser inteiras.</p>
+<hr>
+<h4>Parte 3 — Embeddings</h4>
+<div class="code-block"><span class="lang-tag">Python</span>
+<pre><code>class Embeddings(nn.Module):
+    def __init__(self, vocab_size, d_model):
+        super().__init__()
+        # nn.Embedding é uma tabela de lookup: ID → vetor
+        # vocab_size linhas, d_model colunas
+        self.embed = nn.Embedding(vocab_size, d_model)
+        self.d_model = d_model
 
-<h4>Destaques do Código</h4>
-<p><strong>Weight tying (compartilhamento de pesos):</strong></p>
-<div class="code-block"><span class="lang-tag">Embedding de entrada = projeção de saída (economiza ~19M parâmetros)</span>
-<pre><code>self.proj.weight = self.encoder.embed.embed.weight</code></pre></div>
+    def forward(self, x):
+        # x tem shape (batch_size, seq_len)
+        # Ex: (64, 50) = 64 frases, cada uma com 50 tokens
+        embed = self.embed(x)  # (batch, seq_len, d_model)
+        return embed * math.sqrt(self.d_model)  # × √512 ≈ 22.6</code></pre></div>
+<p><strong>Linha por linha:</strong></p>
+<ul>
+<li><code>nn.Embedding(vocab_size, d_model)</code> — cria uma matriz 37.000 × 512. Quando você passa um ID, retorna a linha correspondente. É exatamente a "ficha de biblioteca" do conceito de <a href="EMBEDDINGS.md">Embeddings</a>.</li>
+<li><code>self.embed(x)</code> — <code>x</code> é uma matriz de IDs (batch × seq_len). O resultado é uma matriz (batch × seq_len × 512), onde cada ID virou um vetor de 512 dimensões.</li>
+<li><code>* math.sqrt(self.d_model)</code> — multiplica por √512 ≈ 22.6 para equilibrar com o positional encoding (±1).</li>
+</ul>
+<p><strong>O que é "batch"?</strong> GPUs processam várias frases ao mesmo tempo. Um batch de 64 frases de 50 tokens cada é mais eficiente que processar 1 frase por vez. <code>batch_size</code> é a primeira dimensão de todo tensor no PyTorch.</p>
+<hr>
+<h4>Parte 4 — Positional Encoding</h4>
+<div class="code-block"><span class="lang-tag">Python</span>
+<pre><code>class PositionalEncoding(nn.Module):
+    def __init__(self, d_model, max_len=512):
+        super().__init__()
+        # Cria matriz (max_len × d_model) com os senos/cossenos
+        pe = torch.zeros(max_len, d_model)  # placeholder: max_len linhas, 512 colunas
 
-<p><strong>Inferência auto-regressiva (geração de texto):</strong></p>
-<div class="code-block"><span class="lang-tag">Loop de geração — encoder roda 1 vez, decoder N vezes</span>
-<pre><code>enc_output = model.encoder(src)              # 1 vez (Z_enc fixo)
+        # pos: vetor coluna [0, 1, 2, ..., max_len-1] com shape (max_len, 1)
+        pos = torch.arange(0, max_len).unsqueeze(1).float()
 
-generated = [&lt;s&gt;]
-for step in range(max_tokens):
-    dec_out = model.decoder(generated, enc_output)
-    next_token = softmax(model.proj(dec_out[:, -1, :]) / T).argmax()
-    generated.append(next_token)               # auto-alimentação!
-    if next_token == &lt;/s&gt;: break</code></pre></div>
+        # denominador: 10000^(2i/d_model) para cada dimensão i
+        # torch.arange(0, d_model, 2) → [0, 2, 4, ..., 510] (só pares)
+        div = torch.exp(
+            torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model)
+        )
 
-<p><strong>Teacher forcing (treino):</strong> o decoder recebe a saída completa deslocada em 1. "<s>" prevê token 1, "<s> tok1" prevê token 2, etc. A máscara triangular impede "cola".</p>
+        pe[:, 0::2] = torch.sin(pos * div)   # dimensões pares: seno
+        pe[:, 1::2] = torch.cos(pos * div)   # dimensões ímpares: cosseno
 
-<h4>Pré-requisitos</h4>
-<p>Todos os 8 fundamentos do Transformer + <a href="#pipeline-completa">Pipeline Completa</a>. Não precisa saber PyTorch — o guia ensina do zero.</p>
+        # Registra como buffer (não é peso treinável, mas faz parte do modelo)
+        self.register_buffer('pe', pe.unsqueeze(0))  # (1, max_len, d_model)
+
+    def forward(self, x):
+        # x: (batch, seq_len, d_model)
+        # self.pe[:, :x.size(1)] corta o PE no tamanho certo da sequência
+        return x + self.pe[:, :x.size(1), :]</code></pre></div>
+<p><strong>Linha por linha:</strong></p>
+<ul>
+<li><code>torch.zeros(max_len, d_model)</code> — cria uma matriz de zeros. <code>max_len=512</code> linhas (posições), <code>d_model=512</code> colunas (dimensões).</li>
+<li><code>torch.arange(0, max_len)</code> — como <code>range(0, 512)</code> do Python, mas retorna um tensor: <code>[0, 1, 2, ..., 511]</code>.</li>
+<li><code>.unsqueeze(1)</code> — adiciona uma dimensão extra na posição 1. Transforma <code>(512,)</code> em <code>(512, 1)</code>. Necessário para o broadcasting multiplicar corretamente com <code>div</code>.</li>
+<li><code>torch.arange(0, d_model, 2)</code> — <code>[0, 2, 4, ..., 510]</code>, só os índices pares (256 valores).</li>
+<li><code>torch.exp(...)</code> — calcula <code>e^x</code> para cada elemento. Aqui implementa <code>10000^(2i/d)</code> usando a identidade <code>a^b = e^(b·ln(a))</code>.</li>
+<li><code>pe[:, 0::2]</code> — indexing avançado: "todas as linhas, colunas pares começando em 0, passo 2".</li>
+<li><code>pe[:, 1::2]</code> — "todas as linhas, colunas ímpares começando em 1, passo 2".</li>
+<li><code>register_buffer</code> — registra <code>pe</code> como parte do modelo, mas NÃO como peso treinável. Quando você salva o modelo, o PE é salvo junto. Quando move para GPU, o PE vai junto.</li>
+<li><code>self.pe[:, :x.size(1), :]</code> — corta o PE para o comprimento da sequência atual. Se a frase tem 50 tokens, pega só as 50 primeiras linhas.</li>
+</ul>
+<hr>
+<h4>Parte 5 — Scaled Dot-Product Attention (Uma Cabeça)</h4>
+<div class="code-block"><span class="lang-tag">Python</span>
+<pre><code>def scaled_dot_product_attention(Q, K, V, mask=None):
+    """
+    Q: (batch, heads, seq_len, d_k)   — "o que eu quero saber?"
+    K: (batch, heads, seq_len, d_k)   — "o que eu ofereço?"
+    V: (batch, heads, seq_len, d_v)   — "minha informação"
+    mask: (batch, 1, seq_len, seq_len) ou None
+    """
+    d_k = Q.size(-1)  # último valor do shape de Q (= 64)
+    
+    # Passo 1: scores = Q · K^T / √d_k
+    # Q: (batch, heads, seq_q, d_k)
+    # K.transpose(-2, -1): (batch, heads, d_k, seq_k)
+    # resultado: (batch, heads, seq_q, seq_k)
+    scores = torch.matmul(Q, K.transpose(-2, -1)) / math.sqrt(d_k)
+    
+    # Passo 2: máscara (se existir)
+    if mask is not None:
+        # mask tem -∞ nas posições proibidas, 0 nas permitidas
+        scores = scores.masked_fill(mask == 0, float('-inf'))
+    
+    # Passo 3: softmax
+    attn_weights = F.softmax(scores, dim=-1)
+    
+    # Passo 4: média ponderada dos Values
+    # attn_weights: (batch, heads, seq_q, seq_k)
+    # V: (batch, heads, seq_k, d_v)
+    # resultado: (batch, heads, seq_q, d_v)
+    output = torch.matmul(attn_weights, V)
+    
+    return output, attn_weights</code></pre></div>
+<p><strong>Linha por linha:</strong></p>
+<ul>
+<li><code>.size(-1)</code> — retorna o tamanho da ÚLTIMA dimensão. Para um tensor <code>(2, 8, 50, 64)</code>, <code>.size(-1)</code> retorna <code>64</code>.</li>
+<li><code>.transpose(-2, -1)</code> — troca as DUAS ÚLTIMAS dimensões. <code>(2, 8, 50, 64)</code> → <code>(2, 8, 64, 50)</code>. Isso é a transposição K^T.</li>
+<li><code>torch.matmul(A, B)</code> — multiplicação de matrizes. Se A e B são batches (3D ou 4D), multiplica a última dimensão de A pela penúltima de B, tratando as dimensões anteriores como batch.</li>
+<li><code>math.sqrt(d_k)</code> — √64 = 8. Escala que mantém variância ~1.</li>
+<li><code>scores.masked_fill(mask == 0, float('-inf'))</code> — onde a máscara for 0, coloca <code>-∞</code>. <code>softmax(-∞) = 0</code>, então essas posições viram peso 0.</li>
+<li><code>F.softmax(scores, dim=-1)</code> — aplica softmax na ÚLTIMA dimensão. <code>dim=-1</code> significa "normaliza cada linha da última dimensão para soma = 1". Para uma matriz <code>(2, 8, 50, 50)</code>, cada uma das 50 colunas das últimas 2 dimensões é normalizada independentemente.</li>
+<li><code>float('-inf')</code> — representa "menos infinito" em Python. <code>e^(-∞) = 0</code>.</li>
+</ul>
+<hr>
+<h4>Parte 6 — Multi-Head Attention</h4>
+<div class="code-block"><span class="lang-tag">Python</span>
+<pre><code>class MultiHeadAttention(nn.Module):
+    def __init__(self, d_model, h, dropout=0.1):
+        super().__init__()
+        self.h = h  # número de cabeças (8)
+        self.d_k = d_model // h  # 64
+        self.d_v = d_model // h  # 64
+        
+        # Projeções lineares: 512 → 512 (para Q, K, V juntas)
+        self.W_Q = nn.Linear(d_model, d_model)  # 512 → 512
+        self.W_K = nn.Linear(d_model, d_model)
+        self.W_V = nn.Linear(d_model, d_model)
+        self.W_O = nn.Linear(d_model, d_model)  # projeção de saída
+        
+        self.dropout = nn.Dropout(dropout)
+    
+    def forward(self, Q, K, V, mask=None):
+        batch_size = Q.size(0)
+        
+        # Passo 1: projeções lineares
+        Q = self.W_Q(Q)  # (batch, seq_len, d_model)
+        K = self.W_K(K)
+        V = self.W_V(V)
+        
+        # Passo 2: divide em cabeças
+        # (batch, seq_len, d_model) → (batch, seq_len, h, d_k)
+        Q = Q.view(batch_size, -1, self.h, self.d_k)
+        K = K.view(batch_size, -1, self.h, self.d_k)
+        V = V.view(batch_size, -1, self.h, self.d_v)
+        
+        # Transpõe para (batch, h, seq_len, d_k)
+        Q = Q.transpose(1, 2)
+        K = K.transpose(1, 2)
+        V = V.transpose(1, 2)
+        
+        # Passo 3: atenção (chama a função da Parte 5)
+        attn_output, attn_weights = scaled_dot_product_attention(Q, K, V, mask)
+        # attn_output: (batch, h, seq_len, d_v)
+        
+        # Passo 4: junta as cabeças
+        # (batch, h, seq_len, d_v) → (batch, seq_len, h, d_v)
+        attn_output = attn_output.transpose(1, 2)
+        # → (batch, seq_len, h * d_v) = (batch, seq_len, 512)
+        attn_output = attn_output.contiguous().view(batch_size, -1, self.h * self.d_v)
+        
+        # Passo 5: projeção final W_O
+        return self.W_O(attn_output)</code></pre></div>
+<p><strong>Linha por linha:</strong></p>
+<ul>
+<li><code>nn.Linear(d_model, d_model)</code> — camada totalmente conectada: <code>y = xW + b</code>. Cria uma matriz de pesos W (512×512) e um vetor de bias b (512). TOTALMENTE aprendível.</li>
+<li><code>.view(batch_size, -1, self.h, self.d_k)</code> — reorganiza o tensor sem copiar dados. <code>-1</code> significa "calcula essa dimensão automaticamente". <code>(64, 50, 512)</code> → <code>(64, 50, 8, 64)</code>.</li>
+<li><code>.transpose(1, 2)</code> — troca as dimensões 1 (seq_len) e 2 (h). <code>(64, 50, 8, 64)</code> → <code>(64, 8, 50, 64)</code>. Agora a dimensão das cabeças está na posição correta para a função de atenção.</li>
+<li><code>.contiguous()</code> — garante que o tensor está em ordem contínua na memória antes do <code>.view()</code>. Necessário após <code>.transpose()</code>.</li>
+<li><code>.view(batch_size, -1, self.h * self.d_v)</code> — achata as cabeças de volta: <code>(64, 50, 8, 64)</code> → <code>(64, 50, 512)</code>.</li>
+</ul>
+<p><strong>Por que juntar Q, K, V em matrizes 512→512 em vez de 512→64?</strong> Fazer 512→512 e depois dividir em 8 fatias de 64 é matematicamente idêntico a fazer 8 projeções separadas 512→64, mas é mais eficiente na GPU (uma multiplicação grande em vez de 8 pequenas).</p>
+<hr>
+<h4>Parte 7 — Feed-Forward Network</h4>
+<div class="code-block"><span class="lang-tag">Python</span>
+<pre><code>class FeedForward(nn.Module):
+    def __init__(self, d_model, d_ff, dropout=0.1):
+        super().__init__()
+        self.W1 = nn.Linear(d_model, d_ff)   # 512 → 2048
+        self.W2 = nn.Linear(d_ff, d_model)   # 2048 → 512
+        self.dropout = nn.Dropout(dropout)
+    
+    def forward(self, x):
+        # x: (batch, seq_len, d_model)
+        x = self.W1(x)           # (batch, seq_len, d_ff) = (batch, seq_len, 2048)
+        x = F.relu(x)            # ReLU: max(0, x) — zera negativos
+        x = self.dropout(x)      # 10% dos neurônios zerados aleatoriamente (só no treino)
+        x = self.W2(x)           # (batch, seq_len, d_model) = (batch, seq_len, 512)
+        return x</code></pre></div>
+<p><strong>Linha por linha:</strong></p>
+<ul>
+<li><code>nn.Linear(d_model, d_ff)</code> — cria pesos W₁ (512×2048) e bias b₁ (2048).</li>
+<li><code>F.relu(x)</code> — <code>max(0, x)</code>. Se o valor é negativo, vira 0. Se positivo, passa direto. É o que torna a rede NÃO-linear — sem isso, 100 camadas lineares seria equivalente a 1 camada linear (matematicamente: <code>W₁(W₂(W₃x)) = (W₁W₂W₃)x</code>, que é só outra matriz).</li>
+<li><code>nn.Dropout(dropout)</code> — durante o treino, zera aleatoriamente 10% dos valores e multiplica os 90% restantes por 1/(1-0.1). Durante a inferência (eval), não faz nada.</li>
+<li>A FFN é aplicada <strong>identicamente</strong> a cada token, mas de forma independente. O <code>nn.Linear</code> opera na última dimensão de <code>x</code>: cada token (vetor 512-dim) passa pela mesma transformação.</li>
+</ul>
+<hr>
+<h4>Parte 8 — Encoder Layer (1 Camada)</h4>
+<div class="code-block"><span class="lang-tag">Python</span>
+<pre><code>class EncoderLayer(nn.Module):
+    def __init__(self, d_model, h, d_ff, dropout=0.1):
+        super().__init__()
+        self.self_attn = MultiHeadAttention(d_model, h, dropout)
+        self.ffn = FeedForward(d_model, d_ff, dropout)
+        self.norm1 = nn.LayerNorm(d_model)  # normaliza APÓS atenção + residual
+        self.norm2 = nn.LayerNorm(d_model)  # normaliza APÓS FFN + residual
+        self.dropout = nn.Dropout(dropout)
+    
+    def forward(self, x, mask=None):
+        # Sub-camada 1: Self-Attention + Residual + LayerNorm
+        attn_out = self.self_attn(x, x, x, mask)  # Q, K, V = x (mesma fonte)
+        x = x + self.dropout(attn_out)             # residual: soma entrada
+        x = self.norm1(x)                          # LayerNorm: normaliza
+        
+        # Sub-camada 2: FFN + Residual + LayerNorm
+        ffn_out = self.ffn(x)
+        x = x + self.dropout(ffn_out)              # residual: soma entrada
+        x = self.norm2(x)                          # LayerNorm: normaliza
+        
+        return x</code></pre></div>
+<p><strong>Linha por linha:</strong></p>
+<ul>
+<li><code>nn.LayerNorm(d_model)</code> — normaliza CADA token independentemente: calcula média µ e desvio σ das 512 dimensões daquele token, depois faz <code>(x-µ)/σ * γ + β</code>. γ e β são aprendidos (permitem "desfazer" a normalização se necessário).</li>
+<li><code>self.self_attn(x, x, x, mask)</code> — Q, K e V vêm do mesmo lugar <code>x</code> (self-attention). No encoder, todos os tokens podem ver todos os outros.</li>
+<li><code>x + self.dropout(attn_out)</code> — conexão residual: soma a saída da atenção com a entrada original. Se a atenção não tiver nada útil a acrescentar, o sinal original passa intacto. Isso resolve o problema do gradiente evanescente.</li>
+<li><strong>Ordem pós-norm:</strong> atenção → residual → LayerNorm. O Transformer original usa esta ordem. Modelos modernos invertem (pré-norm: LayerNorm → atenção → residual).</li>
+</ul>
+<hr>
+<h4>Parte 9 — Decoder Layer (1 Camada)</h4>
+<div class="code-block"><span class="lang-tag">Python</span>
+<pre><code>class DecoderLayer(nn.Module):
+    def __init__(self, d_model, h, d_ff, dropout=0.1):
+        super().__init__()
+        self.masked_attn = MultiHeadAttention(d_model, h, dropout)  # self com máscara
+        self.cross_attn = MultiHeadAttention(d_model, h, dropout)   # cross: Q=dec, K,V=enc
+        self.ffn = FeedForward(d_model, d_ff, dropout)
+        self.norm1 = nn.LayerNorm(d_model)
+        self.norm2 = nn.LayerNorm(d_model)
+        self.norm3 = nn.LayerNorm(d_model)
+        self.dropout = nn.Dropout(dropout)
+    
+    def forward(self, x, enc_output, src_mask=None, tgt_mask=None):
+        # Sub-camada 1: Masked Self-Attention + Residual + LayerNorm
+        # Q, K, V = x (decoder), máscara triangular para esconder futuro
+        attn_out = self.masked_attn(x, x, x, tgt_mask)
+        x = x + self.dropout(attn_out)
+        x = self.norm1(x)
+        
+        # Sub-camada 2: Cross-Attention + Residual + LayerNorm
+        # Q = decoder, K e V = encoder (Z_enc, a saída do encoder!)
+        cross_out = self.cross_attn(x, enc_output, enc_output, src_mask)
+        x = x + self.dropout(cross_out)
+        x = self.norm2(x)
+        
+        # Sub-camada 3: FFN + Residual + LayerNorm
+        ffn_out = self.ffn(x)
+        x = x + self.dropout(ffn_out)
+        x = self.norm3(x)
+        
+        return x</code></pre></div>
+<p><strong>Por que 3 sub-camadas e não 2?</strong> O decoder tem duas fontes de informação: o que já gerou (masked self-attention) e a entrada original (cross-attention). O encoder só tem uma fonte (a entrada).</p>
+<hr>
+<h4>Parte 10 — Criando as Máscaras</h4>
+<div class="code-block"><span class="lang-tag">Python</span>
+<pre><code>def create_padding_mask(seq, pad_token=0):
+    """
+    Impede que a atenção preste atenção em tokens &lt;PAD&gt;.
+    seq: (batch, seq_len) — IDs dos tokens
+    Retorna: (batch, 1, 1, seq_len) — True onde NÃO é padding
+    """
+    # seq != pad_token → True para tokens reais, False para &lt;PAD&gt;
+    return (seq != pad_token).unsqueeze(1).unsqueeze(2)
+
+
+def create_look_ahead_mask(seq_len, device):
+    """
+    Máscara triangular: token i só vê tokens j ≤ i (passado e presente).
+    Usa torch.tril (triangular inferior = lower triangular).
+    Retorna: (1, 1, seq_len, seq_len)
+    """
+    # torch.ones(seq_len, seq_len) → matriz quadrada de 1s
+    # torch.tril → mantém só a parte triangular INFERIOR
+    mask = torch.tril(torch.ones(seq_len, seq_len, device=device))
+    return mask.unsqueeze(0).unsqueeze(0)  # (1, 1, seq_len, seq_len)</code></pre></div>
+<p><strong>Linha por linha:</strong></p>
+<ul>
+<li><code>seq != pad_token</code> — comparação elemento a elemento. Retorna uma máscara booleana: True onde há tokens reais, False onde há padding.</li>
+<li><code>.unsqueeze(1).unsqueeze(2)</code> — adiciona dimensões para broadcasting com a matriz de atenção: <code>(batch, seq_len)</code> → <code>(batch, 1, 1, seq_len)</code>.</li>
+<li><code>torch.tril(...)</code> — "triangle lower". Mantém os valores na diagonal e abaixo, zera acima. Ex: <code>torch.tril(torch.ones(3,3))</code> = <code>[[1,0,0],[1,1,0],[1,1,1]]</code>.</li>
+<li><code>device=device</code> — cria o tensor diretamente na GPU, evitando transferência posterior.</li>
+</ul>
+<p><strong>Como as máscaras se combinam:</strong> você faz <code>mask = padding_mask & look_ahead_mask</code>. O resultado é True só onde o token NÃO é padding E está em posição ≤ i.</p>
+<hr>
+<h4>Parte 11 — Encoder (Stack de 6 Camadas)</h4>
+<div class="code-block"><span class="lang-tag">Python</span>
+<pre><code>class Encoder(nn.Module):
+    def __init__(self, vocab_size, d_model, h, d_ff, N, max_len, dropout=0.1):
+        super().__init__()
+        self.embed = Embeddings(vocab_size, d_model)
+        self.pe = PositionalEncoding(d_model, max_len)
+        self.layers = nn.ModuleList([
+            EncoderLayer(d_model, h, d_ff, dropout) for _ in range(N)
+        ])
+        self.dropout = nn.Dropout(dropout)
+    
+    def forward(self, src, src_mask=None):
+        # src: (batch, src_seq_len) — IDs dos tokens de entrada
+        x = self.embed(src)      # (batch, src_seq_len, d_model)
+        x = self.pe(x)           # soma positional encoding
+        x = self.dropout(x)
+        
+        for layer in self.layers:
+            x = layer(x, src_mask)
+        
+        return x  # Z_enc: (batch, src_seq_len, d_model)</code></pre></div>
+<p><strong>Linha por linha:</strong></p>
+<ul>
+<li><code>nn.ModuleList([...])</code> — lista Python que o PyTorch sabe que contém módulos. Diferente de <code>nn.Sequential</code>, permite acessar camadas individuais (<code>self.layers[2]</code>). Necessário para o loop <code>for</code>.</li>
+<li><code>for _ in range(N)</code> — <code>_</code> é convenção Python para "não vou usar essa variável". Cria 6 camadas idênticas (com pesos diferentes, cada uma inicializada aleatoriamente).</li>
+<li>O encoder processa a frase INTEIRA de uma vez — não é auto-regressivo.</li>
+</ul>
+<hr>
+<h4>Parte 12 — Decoder (Stack de 6 Camadas)</h4>
+<div class="code-block"><span class="lang-tag">Python</span>
+<pre><code>class Decoder(nn.Module):
+    def __init__(self, vocab_size, d_model, h, d_ff, N, max_len, dropout=0.1):
+        super().__init__()
+        self.embed = Embeddings(vocab_size, d_model)
+        self.pe = PositionalEncoding(d_model, max_len)
+        self.layers = nn.ModuleList([
+            DecoderLayer(d_model, h, d_ff, dropout) for _ in range(N)
+        ])
+        self.dropout = nn.Dropout(dropout)
+    
+    def forward(self, tgt, enc_output, src_mask=None, tgt_mask=None):
+        # tgt: (batch, tgt_seq_len) — IDs dos tokens de saída
+        # enc_output: (batch, src_seq_len, d_model) — saída Z_enc do encoder
+        x = self.embed(tgt)
+        x = self.pe(x)
+        x = self.dropout(x)
+        
+        for layer in self.layers:
+            x = layer(x, enc_output, src_mask, tgt_mask)
+        
+        return x  # (batch, tgt_seq_len, d_model)</code></pre></div>
+<hr>
+<h4>Parte 13 — O Transformer Completo</h4>
+<div class="code-block"><span class="lang-tag">Python</span>
+<pre><code>class Transformer(nn.Module):
+    def __init__(self, vocab_size=37000, d_model=512, h=8, d_ff=2048,
+                 N_enc=6, N_dec=6, max_len=512, dropout=0.1):
+        super().__init__()
+        self.encoder = Encoder(vocab_size, d_model, h, d_ff, N_enc, max_len, dropout)
+        self.decoder = Decoder(vocab_size, d_model, h, d_ff, N_dec, max_len, dropout)
+        
+        # Projeção final: vetor 512-dim → scores sobre o vocabulário (37K)
+        self.proj = nn.Linear(d_model, vocab_size)
+        
+        # Weight tying: compartilha pesos do embedding com a projeção final
+        self.proj.weight = self.encoder.embed.embed.weight
+    
+    def forward(self, src, tgt, src_mask=None, tgt_mask=None):
+        """
+        src: (batch, src_seq_len) — frase de entrada tokenizada
+        tgt: (batch, tgt_seq_len) — frase de saída (shiftada, ver Parte 14)
+        """
+        enc_output = self.encoder(src, src_mask)
+        dec_output = self.decoder(tgt, enc_output, src_mask, tgt_mask)
+        logits = self.proj(dec_output)  # (batch, tgt_seq_len, vocab_size)
+        return logits</code></pre></div>
+<p><strong>Linha por linha:</strong></p>
+<ul>
+<li><code>nn.Linear(d_model, vocab_size)</code> — projeção final: mapeia cada vetor de 512 dimensões para 37.000 scores (um para cada token do vocabulário).</li>
+<li><code>self.proj.weight = self.encoder.embed.embed.weight</code> — <strong>weight tying</strong>: compartilha a mesma matriz de pesos entre o embedding de entrada e a projeção de saída. Economiza ~19M parâmetros e força o modelo a usar o mesmo espaço vetorial para representar entrada e saída. Isso só funciona porque <code>vocab_size × d_model</code> = <code>d_model × vocab_size</code> (a matriz é transposta automaticamente pelo <code>nn.Linear</code>).</li>
+<li><code>logits</code> — scores brutos (antes do softmax). Cada posição da sequência de saída tem 37.000 scores. O maior score indica o token mais provável.</li>
+</ul>
+<hr>
+<h4>Parte 14 — Preparando os Dados (Teacher Forcing)</h4>
+<p>Durante o TREINO, o decoder recebe a frase de saída COMPLETA, mas <strong>deslocada em 1</strong>:</p>
+<div class="code-block"><span class="lang-tag">Python</span>
+<pre><code># Exemplo: traduzir "O gato dormiu" → "The cat slept"
+src = ["O", "gato", "dormiu"]           # entrada do encoder
+tgt = ["&lt;s&gt;", "The", "cat", "slept"]    # entrada do decoder (shiftada)
+labels = ["The", "cat", "slept", "&lt;/s&gt;"] # o que o modelo deve prever
+
+# O decoder vê "&lt;s&gt;" e prevê "The"
+# O decoder vê "&lt;s&gt; The" e prevê "cat"
+# O decoder vê "&lt;s&gt; The cat" e prevê "slept"
+# O decoder vê "&lt;s&gt; The cat slept" e prevê "&lt;/s&gt;"</code></pre></div>
+<p><strong>A máscara triangular garante</strong> que, mesmo recebendo a frase completa, o modelo não "cole" — na posição 2, ele só vê posições 0, 1, 2 (não vê "slept" ainda).</p>
+<hr>
+<h4>Parte 15 — Inferência (Geração Auto-Regressiva)</h4>
+<p>Durante a INFERÊNCIA, geramos um token por vez:</p>
+<div class="code-block"><span class="lang-tag">Python</span>
+<pre><code>@torch.no_grad()  # desliga o cálculo de gradientes (não estamos treinando)
+def generate(model, src, max_new_tokens=100, start_token=1, end_token=2,
+             temperature=1.0, device='cpu'):
+    """
+    Gera texto auto-regressivamente.
+    
+    model: Transformer já treinado
+    src: (1, src_seq_len) — frase de entrada com batch=1
+    max_new_tokens: máximo de tokens a gerar
+    start_token: ID do token &lt;s&gt;
+    end_token: ID do token &lt;/s&gt;
+    temperature: controla criatividade (1.0 = padrão)
+    """
+    model.eval()  # modo inferência (desliga dropout)
+    
+    # Passo 1: encoder processa a entrada UMA vez
+    src_mask = create_padding_mask(src, pad_token=0).to(device)
+    enc_output = model.encoder(src, src_mask)  # Z_enc: constante
+    
+    # Passo 2: inicializa o decoder com &lt;s&gt;
+    generated = torch.tensor([[start_token]], device=device)  # (1, 1)
+    
+    for step in range(max_new_tokens):
+        # Cria máscara triangular para o decoder
+        seq_len = generated.size(1)
+        tgt_mask = create_look_ahead_mask(seq_len, device)
+        
+        # Decoder processa tudo gerado até agora
+        dec_output = model.decoder(generated, enc_output, src_mask, tgt_mask)
+        
+        # Pega só o ÚLTIMO token da saída (é auto-regressivo)
+        last_token_logits = model.proj(dec_output[:, -1, :])  # (1, vocab_size)
+        
+        # Aplica temperatura e softmax
+        last_token_logits = last_token_logits / temperature
+        probs = F.softmax(last_token_logits, dim=-1)  # (1, vocab_size)
+        
+        # Escolhe o token mais provável (greedy)
+        next_token = torch.argmax(probs, dim=-1, keepdim=True)  # (1, 1)
+        
+        # Concatena com os tokens já gerados (auto-alimentação!)
+        generated = torch.cat([generated, next_token], dim=-1)
+        
+        # Se gerou &lt;/s&gt;, para
+        if next_token.item() == end_token:
+            break
+    
+    return generated.squeeze(0).tolist()  # lista de IDs</code></pre></div>
+<p><strong>Linha por linha:</strong></p>
+<ul>
+<li><code>@torch.no_grad()</code> — decorator que desliga o rastreamento de gradientes. Durante a inferência, não precisamos calcular derivadas, economizando memória e tempo.</li>
+<li><code>model.eval()</code> — coloca o modelo em modo de inferência. Isso faz o dropout e batch normalization se comportarem corretamente (dropout não zera nada, batchnorm usa estatísticas móveis).</li>
+<li><code>dec_output[:, -1, :]</code> — indexing: "todas as batches, ÚLTIMO token, todas as dimensões". Pega só o vetor do último token gerado para prever o próximo.</li>
+<li><code>torch.argmax(probs, dim=-1, keepdim=True)</code> — retorna o ÍNDICE do maior valor. <code>dim=-1</code> = na última dimensão (vocabulário). <code>keepdim=True</code> mantém a dimensão: <code>(1,)</code> em vez de <code>()</code>.</li>
+<li><code>torch.cat([generated, next_token], dim=-1)</code> — concatena o novo token ao final da sequência. <code>dim=-1</code> = concatena na última dimensão (seq_len). Isso é a AUTO-ALIMENTAÇÃO.</li>
+<li><code>.item()</code> — converte um tensor de 1 elemento para um valor Python. <code>tensor([2])</code> → <code>2</code>.</li>
+<li><code>.squeeze(0).tolist()</code> — remove a dimensão do batch e converte para lista Python: <code>[[1, 87, 543, 5612]]</code> → <code>[1, 87, 543, 5612]</code>.</li>
+</ul>
+<hr>
+<h4>Parte 16 — Exemplo de Forward Pass</h4>
+<div class="code-block"><span class="lang-tag">Python</span>
+<pre><code># Cria o modelo (sem treinar — pesos aleatórios)
+model = Transformer(
+    vocab_size=100,  # reduzido para teste (em produção seria 37K)
+    d_model=512,
+    h=8,
+    d_ff=2048,
+    N_enc=6,
+    N_dec=6,
+    max_len=512,
+    dropout=0.1
+).to(device)
+
+# Dados de exemplo (batch de 2 frases)
+src = torch.tensor([[5, 12, 8, 1, 0, 0],     # "O gato dormiu bem &lt;PAD&gt; &lt;PAD&gt;"
+                    [5, 20, 15, 1, 3, 0]])    # "A menina leu o livro &lt;PAD&gt;"
+src = src.to(device)
+
+tgt = torch.tensor([[1, 10, 7, 15, 2, 0],     # "&lt;s&gt; The cat slept &lt;/s&gt; &lt;PAD&gt;"
+                    [1, 8, 18, 22, 2, 0]])    # "&lt;s&gt; The girl read the book &lt;/s&gt; &lt;PAD&gt;"
+tgt = tgt.to(device)
+
+# Cria máscaras
+src_mask = create_padding_mask(src, pad_token=0).to(device)
+tgt_mask = create_look_ahead_mask(tgt.size(1), device)
+# Combina as máscaras do decoder: triangular E padding
+tgt_mask = tgt_mask &amp; create_padding_mask(tgt, pad_token=0).to(device)
+
+# Forward pass
+logits = model(src, tgt[:, :-1], src_mask, tgt_mask[:, :, :-1, :-1])
+# Nota: tgt[:, :-1] remove o último token (shift para teacher forcing)
+# logits: (2, 5, 100) → 2 batches, 5 tokens, 100 scores por token
+
+print(f"Shape da saída: {logits.shape}")
+# Output: Shape da saída: torch.Size([2, 5, 100])
+
+# Parâmetros totais
+total_params = sum(p.numel() for p in model.parameters())
+print(f"Parâmetros totais: {total_params:,}")
+# Output: ~65M (com vocab_size=37K)</code></pre></div>
+<hr>
+<h4>Parte 17 — Estrutura Final do Código</h4>
+<p>Juntando tudo, a hierarquia de classes fica:</p>
+<p>Transformer</p>
+<p>├── Encoder (6 camadas)</p>
+<p>│   ├── Embeddings (|V| × 512, lookup)</p>
+<p>│   ├── PositionalEncoding (senos/cossenos)</p>
+<p>│   └── EncoderLayer × 6</p>
+<p>│       ├── MultiHeadAttention (8 cabeças, Q=K=V=encoder)</p>
+<p>│       │   ├── W_Q, W_K, W_V (Linear 512→512)</p>
+<p>│       │   ├── scaled_dot_product_attention (Q·K^T/√d_k, softmax, ·V)</p>
+<p>│       │   └── W_O (Linear 512→512)</p>
+<p>│       └── FeedForward</p>
+<p>│           ├── W₁ (Linear 512→2048) + ReLU</p>
+<p>│           └── W₂ (Linear 2048→512)</p>
+<p>│</p>
+<p>├── Decoder (6 camadas)</p>
+<p>│   ├── Embeddings (mesma matriz do encoder via weight tying)</p>
+<p>│   ├── PositionalEncoding</p>
+<p>│   └── DecoderLayer × 6</p>
+<p>│       ├── MultiHeadAttention (masked, 8 cabeças, Q=K=V=decoder)</p>
+<p>│       ├── MultiHeadAttention (cross, Q=decoder, K=V=encoder)</p>
+<p>│       └── FeedForward</p>
+<p>│</p>
+<p>└── Projeção (Linear 512 → |V|, pesos compartilhados com Embeddings)</p>
+<hr>
+<h4>Perguntas de Revisão</h4>
+<p>Qual a diferença entre <code>nn.Linear</code> e <code>F.softmax</code> em termos de parâmetros aprendíveis?</p>
+<p>Por que usamos <code>.transpose(-2, -1)</code> para calcular K^T em vez de criar uma nova matriz?</p>
+<p>O que acontece com o <code>nn.Dropout</code> quando chamamos <code>model.eval()</code>?</p>
+<p>Na função <code>generate()</code>, por que o encoder só roda UMA vez e o decoder N vezes?</p>
+<p>Por que <code>tgt[:, :-1]</code> remove o último token no teacher forcing?</p>
+<p>Explique com suas palavras o que <code>.view()</code>, <code>.transpose()</code> e <code>.unsqueeze()</code> fazem.</p>
+<hr>
+<h4>Recursos Adicionais</h4>
+<ul>
+<li><a href="http://nlp.seas.harvard.edu/annotated-transformer/">The Annotated Transformer — Harvard NLP</a> — implementação de referência comentada linha a linha</li>
+<li><a href="https://pytorch.org/docs/stable/">PyTorch Documentation</a> — documentação oficial</li>
+<li><a href="https://colab.research.google.com/">Colab: Transformer do Zero</a> — abra um notebook e cole este código</li>
+</ul>
         </div>
       </div>
     </article>
