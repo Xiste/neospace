@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
@@ -301,10 +301,10 @@ MathJax = {
     <ul class="sidebar-nav">
       <li><a href="#tokenizacao" onclick="closeSidebar()"><span class="status-dot done"></span>Tokenização (BPE)</a></li>
       <li><a href="#embeddings" onclick="closeSidebar()"><span class="status-dot done"></span>Embeddings</a></li>
+      <li><a href="#positional-encoding" onclick="closeSidebar()"><span class="status-dot done"></span>Positional Encoding</a></li>
       <li><a href="#self-attention" onclick="closeSidebar()"><span class="status-dot done"></span>Self-Attention</a></li>
       <li><a href="#multi-head" onclick="closeSidebar()"><span class="status-dot done"></span>Multi-Head Attention</a></li>
       <li><a href="#tipos-atencao" onclick="closeSidebar()"><span class="status-dot done"></span>3 Tipos de Atenção</a></li>
-      <li><a href="#positional-encoding" onclick="closeSidebar()"><span class="status-dot done"></span>Positional Encoding</a></li>
       <li><a href="#ffn-residual" onclick="closeSidebar()"><span class="status-dot done"></span>FFN + Residual + LayerNorm</a></li>
       <li><a href="#transformer-completo" onclick="closeSidebar()"><span class="status-dot done"></span>Transformer Completo</a></li>
         <li><a href="#pipeline-completa" onclick="closeSidebar()"><span class="status-dot done"></span>Pipeline Completa (Exemplo)</a></li>
@@ -646,12 +646,185 @@ Exemplo:
       </div>
     </article>
 
+    <!-- Positional Encoding -->
+
+    <!-- Positional Encoding -->
+    <article class="topic" id="positional-encoding">
+      <div class="topic-marker done"></div>
+      <div class="topic-card">
+        <div class="topic-header">
+          <h3>3. Positional Encoding — Como o Modelo Sabe a Ordem?</h3>
+          <span class="topic-badge done">🟢 Dominado</span>
+        </div>
+        <div class="topic-body">
+<h4>O Problema</h4>
+<p>RNNs processam tokens em ordem — a posição é implícita na arquitetura. CNNs têm noção de posição via janela de convolução. O Transformer removeu AMBAS.</p>
+<p>A self-attention é uma operação de <strong>conjunto</strong>: trata a sequência como um conjunto não-ordenado. Para a atenção, "The cat sat on the mat" e "mat the on sat cat The" produziriam a MESMA representação. Sem informação de posição, "A ama B" = "B ama A".</p>
+
+<h4>Intuição Central — O Relógio de 256 Ponteiros</h4>
+<p>Como codificar "compasso 42" para 100 cantores de um coral? Abordagens possíveis:</p>
+<ul>
+  <li><strong>Inteiro bruto "42!":</strong> o número 42 não tem relação natural com 41 ou 43. O modelo teria que aprender do zero que posições adjacentes são relacionadas</li>
+  <li><strong>Vetor aprendido por posição:</strong> funciona mas não generaliza para sequências mais longas que as do treino</li>
+  <li><strong>Código binário contínuo (Transformer):</strong> use ondas de diferentes frequências!</li>
+</ul>
+<p><strong>Analogia do relógio:</strong></p>
+<ul>
+  <li>Ponteiro dos segundos → completa uma volta a cada 60s (alta frequência)</li>
+  <li>Ponteiro dos minutos → completa uma volta a cada 3600s (média)</li>
+  <li>Ponteiro das horas → completa uma volta a cada 43200s (baixa)</li>
+</ul>
+<p>A combinação única das posições dos 3 ponteiros codifica qualquer horário do dia com precisão de segundos. O Positional Encoding faz o mesmo com <strong>256 "ponteiros"</strong> (pares seno/cosseno) em vez de 3.</p>
+
+<h4>Matemática — Senos e Cossenos</h4>
+<div class="math-block">
+$$PE_{(pos,\,2i)} = \sin\!\left(\frac{pos}{10000^{2i/d_{model}}}\right)$$
+$$PE_{(pos,\,2i+1)} = \cos\!\left(\frac{pos}{10000^{2i/d_{model}}}\right)$$
+<p style="text-align:center;font-size:13px;color:var(--muted);margin-top:8px">
+$pos = 0, 1, 2, \ldots, n-1$ &nbsp;|&nbsp; $i = 0, 1, \ldots, d_{model}/2 - 1$ &nbsp;|&nbsp; $d_{model} = 512$
+</p>
+</div>
+
+<p><strong>As frequências formam progressão geométrica:</strong></p>
+<table>
+  <tr><th>i (par)</th><th>Frequência = 10000^(2i/512)</th><th>Período</th><th>Comportamento</th></tr>
+  <tr><td>0</td><td>10000⁰ = 1</td><td>~2π</td><td>Oscila muito rápido</td></tr>
+  <tr><td>128</td><td>10000^0.5 = 100</td><td>~200π</td><td>Oscilação média</td></tr>
+  <tr><td>255</td><td>10000^0.996 ≈ 9772</td><td>~19544π</td><td>Oscila muito devagar</td></tr>
+</table>
+
+<p>Dimensões baixas (i pequeno) oscilam rápido — capturam posições vizinhas. Dimensões altas (i grande) oscilam devagar — capturam a região geral do token na sequência.</p>
+
+<p><strong>Por que seno E cosseno especificamente?</strong> Porque a trigonometria tem uma propriedade especial: `sen(a+b)` e `cos(a+b)` podem ser reescritos como combinações lineares de `sen(a)`, `cos(a)`, `sen(b)` e `cos(b)`. Isso não vale para tangente, sigmoid ou outras funções.</p>
+
+<p>Essa propriedade permite que o modelo aprenda <strong>posições relativas</strong> ("estou a 3 tokens de distância de X"), não apenas absolutas ("sou o token 7"). É a razão matemática mais profunda do design senoidal.</p>
+
+<h4>Por que "PE(pos+k) é linear em PE(pos)" é a Chave de Tudo</h4>
+<p>Lembra das identidades trigonométricas?</p>
+<div class="code-block"><span class="lang-tag">Identidades do ensino médio que fazem o PE funcionar</span>
+<div class="math-block">
+$$\sin(a + b) = \sin(a)\cos(b) + \cos(a)\sin(b)$$
+$$\cos(a + b) = \cos(a)\cos(b) - \sin(a)\sin(b)$$
+</div>
+
+<p>Agora aplica isso ao PE na posição $pos + k$ para uma dimensão par $2i$:</p>
+<div class="math-block">
+$$PE_{(pos+k,\,2i)} = \sin\!\left(\frac{pos + k}{10000^{2i/d}}\right)$$
+$$= \sin\!\left(\frac{pos}{10000^{2i/d}} + \frac{k}{10000^{2i/d}}\right)$$
+$$= \underbrace{\sin\!\left(\frac{pos}{10000^{2i/d}}\right)}_{PE_{(pos,2i)}} \cdot \cos\!\left(\frac{k}{10000^{2i/d}}\right) + \underbrace{\cos\!\left(\frac{pos}{10000^{2i/d}}\right)}_{PE_{(pos,2i+1)}} \cdot \sin\!\left(\frac{k}{10000^{2i/d}}\right)$$
+$$= PE_{(pos,\,2i)} \cdot A + PE_{(pos,\,2i+1)} \cdot B$$
+<p style="text-align:center;font-size:13px;color:var(--muted);margin-top:8px">
+$A = \cos(k/10000^{2i/d})$ e $B = \sin(k/10000^{2i/d})$ dependem APENAS de $k$ (distância), não de $pos$!
+</p>
+</div>
+
+<p><strong>Traduzindo para a prática:</strong> PE(pos+k) é uma combinação linear de PE(pos). Os coeficientes dependem apenas de <strong>k</strong> (distância), não de <strong>pos</strong> (posição absoluta). Isso significa que se o modelo aprende "atenção ao token que está a 3 posições de distância", essa mesma transformação funciona em QUALQUER lugar da sequência — pos=5, pos=100, ou pos=5000.</p>
+
+<p><strong>Analogia final:</strong> uma régua normal tem números absolutos (1, 2, 3...) — cada marcação é independente. Com PE senoidal, o "código" de cada posição é construído de forma que a distância entre duas posições é codificada diretamente na relação linear entre seus vetores. É como uma régua onde o padrão se repete, e o deslocamento de "+3 casas" é sempre a mesma operação matemática.</p>
+
+<div class="code-block"><span class="lang-tag">Visualização simplificada das primeiras dimensões</span>
+<pre><code>Dimensões →
+ 0: ~ ~ ~ ~ ~ ~ ~ ~ ~ ~  (alta frequência — muda a cada token)
+ 1: __--__--__--__--__--  (média-alta)
+...
+510: ___----___----___---  (média-baixa)
+511: ________--------____  (baixa frequência — muda muito devagar)
+     ↑ ↑ ↑ ↑ ↑ ↑ ↑ ↑ ↑ ↑
+     Posições 0 a 9
+
+Cada coluna (posição) tem um PADRÃO ÚNICO nas 512 dimensões.
+Duas posições próximas têm padrões similares.</code></pre></div>
+
+<h4>Como é Usado — Simples Assim</h4>
+<div class="code-block"><span class="lang-tag">Embedding + Positional Encoding</span>
+<pre><code>1. Token "cat" na posição 3 → Embedding: vetor de 512 floats
+2. Calcular PE para posição 3 → PE(3): vetor de 512 floats
+3. SOMAR: entrada_da_atenção = Embedding + PE(3)
+
+Por que SOMAR e não CONCATENAR?
+  Somar preserva <a href="#glossario-dmodel" class="glossary-link">d_model</a> = 512 (concat dobraria para 1024).
+  O modelo aprende a separar sinal semântico do posicional.
+  Embeddings × √512 equilibra a magnitude com PE (±1).</code></pre></div>
+
+<h4>Na Prática — Senoidal vs Aprendido</h4>
+<p>O paper testou as duas opções (Tabela 3, linha E): resultados <strong>quase idênticos</strong>. A versão senoidal foi escolhida pela esperança de extrapolar para sequências mais longas. Na prática moderna, modelos como GPT e LLaMA usam <strong>PE aprendido</strong> ou <strong>RoPE</strong> (Rotary Position Embedding) — que aplica rotação nos Q e K em vez de somar.</p>
+
+<h4>Conexões</h4>
+<ul>
+  <li><strong>Embeddings × √<a href="#glossario-dmodel" class="glossary-link">d_model</a>:</strong> sem esse fator, o PE (±1) dominaria o sinal semântico no início do treino</li>
+  <li><strong>RoPE (Rotary Position Embedding):</strong> evolução usada em LLaMA e Mistral — codifica posição como rotação nos vetores Q e K, não como adição</li>
+  <li><strong>ALiBi (Attention with Linear Biases):</strong> alternativa sem PE explícito — adiciona um viés linear negativo à matriz de atenção. Simples e eficaz</li>
+  <li><strong>Contexto longo:</strong> PE senoidal permite teoricamente extrapolar para sequências maiores que as do treino — RoPE também com ajuste de frequência</li>
+</ul>
+
+<h4>Perguntas de Revisão</h4>
+<ol>
+  <li>Por que o Transformer precisa de positional encoding? O que aconteceria sem ele?</li>
+  <li>Por que usar senos e cossenos de diferentes frequências em vez do número da posição (1, 2, 3...)?</li>
+  <li>Por que o PE é SOMADO ao embedding e não concatenado? Qual a vantagem?</li>
+  <li>O que significa que PE(pos+k) pode ser expresso como função linear de PE(pos)? Por que isso é útil?</li>
+  <li>Por que as frequências formam progressão geométrica (10000^(2i/d)) e não aritmética (1, 2, 3...)?</li>
+</ol>
+<p><strong>Exercício:</strong> Calcule no papel PE(0) e PE(1) para as primeiras 4 dimensões (i=0 e i=1). Compare os valores. O que você observa sobre dimensões pares vs ímpares?</p>
+
+<div class="quiz-section" data-topic="positional-encoding">
+  <h4>Checkpoint — Multipla Escolha</h4>
+
+  <div class="quiz-question" data-qid="0" data-correct="1">
+    <p class="quiz-q-text">1. Por que o Transformer precisa de positional encoding?</p>
+    <label class="quiz-option"><input type="radio" name="t5_q0" value="0"><span class="letter">A</span> Para aumentar a dimensionalidade dos embeddings</label>
+    <label class="quiz-option"><input type="radio" name="t5_q0" value="1"><span class="letter">B</span> A self-attention trata a sequencia como conjunto nao-ordenado — sem PE, "A ama B" = "B ama A"</label>
+    <label class="quiz-option"><input type="radio" name="t5_q0" value="2"><span class="letter">C</span> Para reduzir o overfitting durante o treino</label>
+    <label class="quiz-option"><input type="radio" name="t5_q0" value="3"><span class="letter">D</span> Para criptografar a posicao dos tokens</label>
+  </div>
+
+  <div class="quiz-question" data-qid="1" data-correct="3">
+    <p class="quiz-q-text">2. Por que usar senos/cossenos de diferentes frequencias em vez do numero da posicao (1, 2, 3...)?</p>
+    <label class="quiz-option"><input type="radio" name="t5_q1" value="0"><span class="letter">A</span> Senos sao mais rapidos de calcular que numeros inteiros</label>
+    <label class="quiz-option"><input type="radio" name="t5_q1" value="1"><span class="letter">B</span> Numeros inteiros nao sao diferenciaveis</label>
+    <label class="quiz-option"><input type="radio" name="t5_q1" value="2"><span class="letter">C</span> O Transformer so aceita valores entre -1 e 1</label>
+    <label class="quiz-option"><input type="radio" name="t5_q1" value="3"><span class="letter">D</span> PE(pos+k) vira funcao linear de PE(pos) — o modelo aprende distancias relativas, nao absolutas</label>
+  </div>
+
+  <div class="quiz-question" data-qid="2" data-correct="0">
+    <p class="quiz-q-text">3. Por que o PE e SOMADO ao embedding e nao concatenado?</p>
+    <label class="quiz-option"><input type="radio" name="t5_q2" value="0"><span class="letter">A</span> Concatenar dobraria d_model — somar preserva a dimensionalidade</label>
+    <label class="quiz-option"><input type="radio" name="t5_q2" value="1"><span class="letter">B</span> Concatenar faria o modelo ignorar a posicao</label>
+    <label class="quiz-option"><input type="radio" name="t5_q2" value="2"><span class="letter">C</span> Somar e mais rapido que concatenar na GPU</label>
+    <label class="quiz-option"><input type="radio" name="t5_q2" value="3"><span class="letter">D</span> Concatenar causaria overfitting imediato</label>
+  </div>
+
+  <div class="quiz-question" data-qid="3" data-correct="1">
+    <p class="quiz-q-text">4. Qual identidade trigonometrica permite que PE(pos+k) seja funcao linear de PE(pos)?</p>
+    <label class="quiz-option"><input type="radio" name="t5_q3" value="0"><span class="letter">A</span> sen²(x) + cos²(x) = 1</label>
+    <label class="quiz-option"><input type="radio" name="t5_q3" value="1"><span class="letter">B</span> sen(a+b) = sen(a)cos(b) + cos(a)sen(b)</label>
+    <label class="quiz-option"><input type="radio" name="t5_q3" value="2"><span class="letter">C</span> tan(x) = sen(x)/cos(x)</label>
+    <label class="quiz-option"><input type="radio" name="t5_q3" value="3"><span class="letter">D</span> sen(2x) = 2sen(x)cos(x)</label>
+  </div>
+
+  <div class="quiz-question" data-qid="4" data-correct="2">
+    <p class="quiz-q-text">5. Por que as frequencias formam progressao geometrica (10000^(2i/d))?</p>
+    <label class="quiz-option"><input type="radio" name="t5_q4" value="0"><span class="letter">A</span> Para que todas as dimensoes oscilem na mesma velocidade</label>
+    <label class="quiz-option"><input type="radio" name="t5_q4" value="1"><span class="letter">B</span> Porque 10000 e o tamanho maximo de sequencia suportado</label>
+    <label class="quiz-option"><input type="radio" name="t5_q4" value="2"><span class="letter">C</span> Para variar de periodo ~2π (rapido) ate ~20000π (devagar), cobrindo todas as escalas de distancia</label>
+    <label class="quiz-option"><input type="radio" name="t5_q4" value="3"><span class="letter">D</span> Para que o PE funcione com qualquer valor de d_model</label>
+  </div>
+
+  <div class="quiz-score"></div>
+  <div class="quiz-progress-bar"><div class="fill"></div></div>
+  <div class="quiz-stats"><span>Quiz</span><span class="pct">0%</span></div>
+  <button class="quiz-btn-retry">Refazer Quiz</button>
+</div>
+        </div>
+      </div>
+    </article>
+
     <!-- Self-Attention -->
     <article class="topic" id="self-attention">
       <div class="topic-marker done"></div>
       <div class="topic-card">
         <div class="topic-header">
-          <h3>3. Self-Attention — O Coração do Transformer</h3>
+          <h3>4. Self-Attention — O Coração do Transformer</h3>
           <span class="topic-badge done">🟢 Dominado</span>
         </div>
         <div class="topic-body">
@@ -807,7 +980,7 @@ $$\text{Attention}(Q, K, V) = \text{softmax}\!\left(\frac{QK^T}{\sqrt{d_k}}\righ
       <div class="topic-marker done"></div>
       <div class="topic-card">
         <div class="topic-header">
-          <h3>4. Multi-Head Attention — 8 Atenções em Paralelo</h3>
+          <h3>5. Multi-Head Attention — 8 Atenções em Paralelo</h3>
           <span class="topic-badge done">🟢 Dominado</span>
         </div>
         <div class="topic-body">
@@ -937,7 +1110,7 @@ O número total de multiplicações é idêntico. A diferença é que 8 cabeças
       <div class="topic-marker done"></div>
       <div class="topic-card">
         <div class="topic-header">
-          <h3>5. Encoder & Decoder — Os 3 Tipos de Atenção</h3>
+          <h3>6. Encoder & Decoder — Os 3 Tipos de Atenção</h3>
           <span class="topic-badge done">🟢 Dominado</span>
         </div>
         <div class="topic-body">
@@ -1137,180 +1310,7 @@ mas consulta as mesmas K,V do encoder (a frase original não muda).</code></pre>
 </div>
         </div>
       </div>
-    </article>
-
-    <!-- Positional Encoding -->
-    <article class="topic" id="positional-encoding">
-      <div class="topic-marker done"></div>
-      <div class="topic-card">
-        <div class="topic-header">
-          <h3>6. Positional Encoding — Como o Modelo Sabe a Ordem?</h3>
-          <span class="topic-badge done">🟢 Dominado</span>
-        </div>
-        <div class="topic-body">
-<h4>O Problema</h4>
-<p>RNNs processam tokens em ordem — a posição é implícita na arquitetura. CNNs têm noção de posição via janela de convolução. O Transformer removeu AMBAS.</p>
-<p>A self-attention é uma operação de <strong>conjunto</strong>: trata a sequência como um conjunto não-ordenado. Para a atenção, "The cat sat on the mat" e "mat the on sat cat The" produziriam a MESMA representação. Sem informação de posição, "A ama B" = "B ama A".</p>
-
-<h4>Intuição Central — O Relógio de 256 Ponteiros</h4>
-<p>Como codificar "compasso 42" para 100 cantores de um coral? Abordagens possíveis:</p>
-<ul>
-  <li><strong>Inteiro bruto "42!":</strong> o número 42 não tem relação natural com 41 ou 43. O modelo teria que aprender do zero que posições adjacentes são relacionadas</li>
-  <li><strong>Vetor aprendido por posição:</strong> funciona mas não generaliza para sequências mais longas que as do treino</li>
-  <li><strong>Código binário contínuo (Transformer):</strong> use ondas de diferentes frequências!</li>
-</ul>
-<p><strong>Analogia do relógio:</strong></p>
-<ul>
-  <li>Ponteiro dos segundos → completa uma volta a cada 60s (alta frequência)</li>
-  <li>Ponteiro dos minutos → completa uma volta a cada 3600s (média)</li>
-  <li>Ponteiro das horas → completa uma volta a cada 43200s (baixa)</li>
-</ul>
-<p>A combinação única das posições dos 3 ponteiros codifica qualquer horário do dia com precisão de segundos. O Positional Encoding faz o mesmo com <strong>256 "ponteiros"</strong> (pares seno/cosseno) em vez de 3.</p>
-
-<h4>Matemática — Senos e Cossenos</h4>
-<div class="math-block">
-$$PE_{(pos,\,2i)} = \sin\!\left(\frac{pos}{10000^{2i/d_{model}}}\right)$$
-$$PE_{(pos,\,2i+1)} = \cos\!\left(\frac{pos}{10000^{2i/d_{model}}}\right)$$
-<p style="text-align:center;font-size:13px;color:var(--muted);margin-top:8px">
-$pos = 0, 1, 2, \ldots, n-1$ &nbsp;|&nbsp; $i = 0, 1, \ldots, d_{model}/2 - 1$ &nbsp;|&nbsp; $d_{model} = 512$
-</p>
-</div>
-
-<p><strong>As frequências formam progressão geométrica:</strong></p>
-<table>
-  <tr><th>i (par)</th><th>Frequência = 10000^(2i/512)</th><th>Período</th><th>Comportamento</th></tr>
-  <tr><td>0</td><td>10000⁰ = 1</td><td>~2π</td><td>Oscila muito rápido</td></tr>
-  <tr><td>128</td><td>10000^0.5 = 100</td><td>~200π</td><td>Oscilação média</td></tr>
-  <tr><td>255</td><td>10000^0.996 ≈ 9772</td><td>~19544π</td><td>Oscila muito devagar</td></tr>
-</table>
-
-<p>Dimensões baixas (i pequeno) oscilam rápido — capturam posições vizinhas. Dimensões altas (i grande) oscilam devagar — capturam a região geral do token na sequência.</p>
-
-<p><strong>Por que seno E cosseno especificamente?</strong> Porque a trigonometria tem uma propriedade especial: `sen(a+b)` e `cos(a+b)` podem ser reescritos como combinações lineares de `sen(a)`, `cos(a)`, `sen(b)` e `cos(b)`. Isso não vale para tangente, sigmoid ou outras funções.</p>
-
-<p>Essa propriedade permite que o modelo aprenda <strong>posições relativas</strong> ("estou a 3 tokens de distância de X"), não apenas absolutas ("sou o token 7"). É a razão matemática mais profunda do design senoidal.</p>
-
-<h4>Por que "PE(pos+k) é linear em PE(pos)" é a Chave de Tudo</h4>
-<p>Lembra das identidades trigonométricas?</p>
-<div class="code-block"><span class="lang-tag">Identidades do ensino médio que fazem o PE funcionar</span>
-<div class="math-block">
-$$\sin(a + b) = \sin(a)\cos(b) + \cos(a)\sin(b)$$
-$$\cos(a + b) = \cos(a)\cos(b) - \sin(a)\sin(b)$$
-</div>
-
-<p>Agora aplica isso ao PE na posição $pos + k$ para uma dimensão par $2i$:</p>
-<div class="math-block">
-$$PE_{(pos+k,\,2i)} = \sin\!\left(\frac{pos + k}{10000^{2i/d}}\right)$$
-$$= \sin\!\left(\frac{pos}{10000^{2i/d}} + \frac{k}{10000^{2i/d}}\right)$$
-$$= \underbrace{\sin\!\left(\frac{pos}{10000^{2i/d}}\right)}_{PE_{(pos,2i)}} \cdot \cos\!\left(\frac{k}{10000^{2i/d}}\right) + \underbrace{\cos\!\left(\frac{pos}{10000^{2i/d}}\right)}_{PE_{(pos,2i+1)}} \cdot \sin\!\left(\frac{k}{10000^{2i/d}}\right)$$
-$$= PE_{(pos,\,2i)} \cdot A + PE_{(pos,\,2i+1)} \cdot B$$
-<p style="text-align:center;font-size:13px;color:var(--muted);margin-top:8px">
-$A = \cos(k/10000^{2i/d})$ e $B = \sin(k/10000^{2i/d})$ dependem APENAS de $k$ (distância), não de $pos$!
-</p>
-</div>
-
-<p><strong>Traduzindo para a prática:</strong> PE(pos+k) é uma combinação linear de PE(pos). Os coeficientes dependem apenas de <strong>k</strong> (distância), não de <strong>pos</strong> (posição absoluta). Isso significa que se o modelo aprende "atenção ao token que está a 3 posições de distância", essa mesma transformação funciona em QUALQUER lugar da sequência — pos=5, pos=100, ou pos=5000.</p>
-
-<p><strong>Analogia final:</strong> uma régua normal tem números absolutos (1, 2, 3...) — cada marcação é independente. Com PE senoidal, o "código" de cada posição é construído de forma que a distância entre duas posições é codificada diretamente na relação linear entre seus vetores. É como uma régua onde o padrão se repete, e o deslocamento de "+3 casas" é sempre a mesma operação matemática.</p>
-
-<div class="code-block"><span class="lang-tag">Visualização simplificada das primeiras dimensões</span>
-<pre><code>Dimensões →
- 0: ~ ~ ~ ~ ~ ~ ~ ~ ~ ~  (alta frequência — muda a cada token)
- 1: __--__--__--__--__--  (média-alta)
-...
-510: ___----___----___---  (média-baixa)
-511: ________--------____  (baixa frequência — muda muito devagar)
-     ↑ ↑ ↑ ↑ ↑ ↑ ↑ ↑ ↑ ↑
-     Posições 0 a 9
-
-Cada coluna (posição) tem um PADRÃO ÚNICO nas 512 dimensões.
-Duas posições próximas têm padrões similares.</code></pre></div>
-
-<h4>Como é Usado — Simples Assim</h4>
-<div class="code-block"><span class="lang-tag">Embedding + Positional Encoding</span>
-<pre><code>1. Token "cat" na posição 3 → Embedding: vetor de 512 floats
-2. Calcular PE para posição 3 → PE(3): vetor de 512 floats
-3. SOMAR: entrada_da_atenção = Embedding + PE(3)
-
-Por que SOMAR e não CONCATENAR?
-  Somar preserva <a href="#glossario-dmodel" class="glossary-link">d_model</a> = 512 (concat dobraria para 1024).
-  O modelo aprende a separar sinal semântico do posicional.
-  Embeddings × √512 equilibra a magnitude com PE (±1).</code></pre></div>
-
-<h4>Na Prática — Senoidal vs Aprendido</h4>
-<p>O paper testou as duas opções (Tabela 3, linha E): resultados <strong>quase idênticos</strong>. A versão senoidal foi escolhida pela esperança de extrapolar para sequências mais longas. Na prática moderna, modelos como GPT e LLaMA usam <strong>PE aprendido</strong> ou <strong>RoPE</strong> (Rotary Position Embedding) — que aplica rotação nos Q e K em vez de somar.</p>
-
-<h4>Conexões</h4>
-<ul>
-  <li><strong>Embeddings × √<a href="#glossario-dmodel" class="glossary-link">d_model</a>:</strong> sem esse fator, o PE (±1) dominaria o sinal semântico no início do treino</li>
-  <li><strong>RoPE (Rotary Position Embedding):</strong> evolução usada em LLaMA e Mistral — codifica posição como rotação nos vetores Q e K, não como adição</li>
-  <li><strong>ALiBi (Attention with Linear Biases):</strong> alternativa sem PE explícito — adiciona um viés linear negativo à matriz de atenção. Simples e eficaz</li>
-  <li><strong>Contexto longo:</strong> PE senoidal permite teoricamente extrapolar para sequências maiores que as do treino — RoPE também com ajuste de frequência</li>
-</ul>
-
-<h4>Perguntas de Revisão</h4>
-<ol>
-  <li>Por que o Transformer precisa de positional encoding? O que aconteceria sem ele?</li>
-  <li>Por que usar senos e cossenos de diferentes frequências em vez do número da posição (1, 2, 3...)?</li>
-  <li>Por que o PE é SOMADO ao embedding e não concatenado? Qual a vantagem?</li>
-  <li>O que significa que PE(pos+k) pode ser expresso como função linear de PE(pos)? Por que isso é útil?</li>
-  <li>Por que as frequências formam progressão geométrica (10000^(2i/d)) e não aritmética (1, 2, 3...)?</li>
-</ol>
-<p><strong>Exercício:</strong> Calcule no papel PE(0) e PE(1) para as primeiras 4 dimensões (i=0 e i=1). Compare os valores. O que você observa sobre dimensões pares vs ímpares?</p>
-
-<div class="quiz-section" data-topic="positional-encoding">
-  <h4>Checkpoint — Multipla Escolha</h4>
-
-  <div class="quiz-question" data-qid="0" data-correct="1">
-    <p class="quiz-q-text">1. Por que o Transformer precisa de positional encoding?</p>
-    <label class="quiz-option"><input type="radio" name="t5_q0" value="0"><span class="letter">A</span> Para aumentar a dimensionalidade dos embeddings</label>
-    <label class="quiz-option"><input type="radio" name="t5_q0" value="1"><span class="letter">B</span> A self-attention trata a sequencia como conjunto nao-ordenado — sem PE, "A ama B" = "B ama A"</label>
-    <label class="quiz-option"><input type="radio" name="t5_q0" value="2"><span class="letter">C</span> Para reduzir o overfitting durante o treino</label>
-    <label class="quiz-option"><input type="radio" name="t5_q0" value="3"><span class="letter">D</span> Para criptografar a posicao dos tokens</label>
-  </div>
-
-  <div class="quiz-question" data-qid="1" data-correct="3">
-    <p class="quiz-q-text">2. Por que usar senos/cossenos de diferentes frequencias em vez do numero da posicao (1, 2, 3...)?</p>
-    <label class="quiz-option"><input type="radio" name="t5_q1" value="0"><span class="letter">A</span> Senos sao mais rapidos de calcular que numeros inteiros</label>
-    <label class="quiz-option"><input type="radio" name="t5_q1" value="1"><span class="letter">B</span> Numeros inteiros nao sao diferenciaveis</label>
-    <label class="quiz-option"><input type="radio" name="t5_q1" value="2"><span class="letter">C</span> O Transformer so aceita valores entre -1 e 1</label>
-    <label class="quiz-option"><input type="radio" name="t5_q1" value="3"><span class="letter">D</span> PE(pos+k) vira funcao linear de PE(pos) — o modelo aprende distancias relativas, nao absolutas</label>
-  </div>
-
-  <div class="quiz-question" data-qid="2" data-correct="0">
-    <p class="quiz-q-text">3. Por que o PE e SOMADO ao embedding e nao concatenado?</p>
-    <label class="quiz-option"><input type="radio" name="t5_q2" value="0"><span class="letter">A</span> Concatenar dobraria d_model — somar preserva a dimensionalidade</label>
-    <label class="quiz-option"><input type="radio" name="t5_q2" value="1"><span class="letter">B</span> Concatenar faria o modelo ignorar a posicao</label>
-    <label class="quiz-option"><input type="radio" name="t5_q2" value="2"><span class="letter">C</span> Somar e mais rapido que concatenar na GPU</label>
-    <label class="quiz-option"><input type="radio" name="t5_q2" value="3"><span class="letter">D</span> Concatenar causaria overfitting imediato</label>
-  </div>
-
-  <div class="quiz-question" data-qid="3" data-correct="1">
-    <p class="quiz-q-text">4. Qual identidade trigonometrica permite que PE(pos+k) seja funcao linear de PE(pos)?</p>
-    <label class="quiz-option"><input type="radio" name="t5_q3" value="0"><span class="letter">A</span> sen²(x) + cos²(x) = 1</label>
-    <label class="quiz-option"><input type="radio" name="t5_q3" value="1"><span class="letter">B</span> sen(a+b) = sen(a)cos(b) + cos(a)sen(b)</label>
-    <label class="quiz-option"><input type="radio" name="t5_q3" value="2"><span class="letter">C</span> tan(x) = sen(x)/cos(x)</label>
-    <label class="quiz-option"><input type="radio" name="t5_q3" value="3"><span class="letter">D</span> sen(2x) = 2sen(x)cos(x)</label>
-  </div>
-
-  <div class="quiz-question" data-qid="4" data-correct="2">
-    <p class="quiz-q-text">5. Por que as frequencias formam progressao geometrica (10000^(2i/d))?</p>
-    <label class="quiz-option"><input type="radio" name="t5_q4" value="0"><span class="letter">A</span> Para que todas as dimensoes oscilem na mesma velocidade</label>
-    <label class="quiz-option"><input type="radio" name="t5_q4" value="1"><span class="letter">B</span> Porque 10000 e o tamanho maximo de sequencia suportado</label>
-    <label class="quiz-option"><input type="radio" name="t5_q4" value="2"><span class="letter">C</span> Para variar de periodo ~2π (rapido) ate ~20000π (devagar), cobrindo todas as escalas de distancia</label>
-    <label class="quiz-option"><input type="radio" name="t5_q4" value="3"><span class="letter">D</span> Para que o PE funcione com qualquer valor de d_model</label>
-  </div>
-
-  <div class="quiz-score"></div>
-  <div class="quiz-progress-bar"><div class="fill"></div></div>
-  <div class="quiz-stats"><span>Quiz</span><span class="pct">0%</span></div>
-  <button class="quiz-btn-retry">Refazer Quiz</button>
-</div>
-        </div>
-      </div>
-    </article>
-
-    <!-- FFN + Residual + LayerNorm -->
+    </article><!-- FFN + Residual + LayerNorm -->
     <article class="topic" id="ffn-residual">
       <div class="topic-marker done"></div>
       <div class="topic-card">
@@ -1779,7 +1779,7 @@ Softmax → "&lt;/s&gt;" (0.38) — token de fim. Geracao concluida.</code></pre
 </ol>
 
 <h4>Pré-requisitos</h4>
-<p>Todos os fundamentos na ordem: Tokenização → Embeddings → Self-Attention → Multi-Head → Encoder/Decoder → Positional Encoding → FFN+Residual → Transformer Completo</p>
+<p>Todos os fundamentos na ordem: Tokenização → Embeddings → Positional Encoding → Self-Attention → Multi-Head → Encoder/Decoder → FFN+Residual → Transformer Completo</p>
 
 <h4>Conexões</h4>
 <ul>

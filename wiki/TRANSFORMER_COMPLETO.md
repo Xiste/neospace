@@ -74,10 +74,10 @@ $$lr = d_{model}^{-0.5} \cdot \min(step\_num^{-0.5}, step\_num \cdot warmup\_ste
 
 1. [Tokenização (BPE)](TOKENIZACAO.md) — texto → inteiros
 2. [Embeddings](EMBEDDINGS.md) — inteiros → vetores densos
-3. [Self-Attention](SELF_ATTENTION.md) — Q·Kᵀ/√d_k · softmax · V
-4. [Multi-Head Attention](MULTI_HEAD_ATTENTION.md) — 8 atenções em paralelo
-5. [Atenção Encoder/Decoder](ATENCAO_CODIFICADOR_DECODIFICADOR.md) — 3 tipos de atenção
-6. [Positional Encoding](POSITIONAL_ENCODING.md) — senos e cossenos
+3. [Positional Encoding](POSITIONAL_ENCODING.md) — senos e cossenos
+4. [Self-Attention](SELF_ATTENTION.md) — Q·Kᵀ/√d_k · softmax · V
+5. [Multi-Head Attention](MULTI_HEAD_ATTENTION.md) — 8 atenções em paralelo
+6. [Atenção Encoder/Decoder](ATENCAO_CODIFICADOR_DECODIFICADOR.md) — 3 tipos de atenção
 7. [Feed-Forward + Residual + LayerNorm](FEED_FORWARD_RESIDUAL_LAYERNORM.md)
 
 ## Pré-requisitos Para Estudar o Transformer

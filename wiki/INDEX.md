@@ -10,10 +10,10 @@
 
 - [x] [Tokenização (BPE)](TOKENIZACAO.md) 🟢
 - [x] [Embeddings](EMBEDDINGS.md) 🟢
+- [x] [Positional Encoding](POSITIONAL_ENCODING.md) 🟢
 - [x] [Self-Attention](SELF_ATTENTION.md) 🟢
 - [x] [Multi-Head Attention](MULTI_HEAD_ATTENTION.md) 🟢
 - [x] [Atenção no Codificador/Decodificador](ATENCAO_CODIFICADOR_DECODIFICADOR.md) 🟢
-- [x] [Positional Encoding](POSITIONAL_ENCODING.md) 🟢
 - [x] [Feed-Forward + Residual + LayerNorm](FEED_FORWARD_RESIDUAL_LAYERNORM.md) 🟢
 - [x] [Transformer — Arquitetura Completa](TRANSFORMER_COMPLETO.md) 🟢
 - [x] [Pipeline Completa — Exemplo Passo a Passo](PIPELINE_COMPLETA.md) 🟢
