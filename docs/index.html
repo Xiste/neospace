@@ -1315,114 +1315,199 @@ mas consulta as mesmas K,V do encoder (a frase original não muda).</code></pre>
       <div class="topic-marker done"></div>
       <div class="topic-card">
         <div class="topic-header">
-          <h3>7. Feed-Forward, Conexões Residuais e LayerNorm</h3>
+          <h3>7. Feed-Forward, Conexoes Residuais e LayerNorm — O Motor das Camadas</h3>
           <span class="topic-badge done">🟢 Dominado</span>
         </div>
         <div class="topic-body">
 <h4>O Problema</h4>
-<p>Redes profundas (20+ camadas) eram impossíveis de treinar até 2015. Dois problemas:</p>
+<p>Depois que a atencao mistura informacao entre tokens, 3 problemas precisam ser resolvidos:</p>
 <ol>
-  <li><strong>Gradiente evanescente:</strong> o sinal de erro ficava cada vez menor a cada camada retropropagada. As primeiras camadas não aprendiam nada</li>
-  <li><strong>Degradação:</strong> mesmo com gradientes OK, redes mais profundas tinham erro de treino MAIOR que redes rasas. Adicionar camadas piorava o modelo</li>
+  <li><strong>Processamento individual:</strong> cada token precisa "pensar sozinho" sobre o que a atencao coletou</li>
+  <li><strong>Empilhamento:</strong> como empilhar 6, 12, 100 camadas sem o treino desandar?</li>
+  <li><strong>Estabilidade:</strong> como evitar que os valores explodam ou desaparecam ao longo das camadas?</li>
 </ol>
-<p>O Transformer empilha 6+6=12 camadas. Sem as técnicas certas, seria impossível treinar.</p>
+<p>A FFN, a conexao residual e a LayerNorm resolvem esses 3 problemas — e juntas formam cada camada do Transformer.</p>
 
-<h4>Intuição Central — Três Peças, Três Analogias</h4>
+<h4>Primeiro: O Que e UMA Camada?</h4>
+<p>Cada camada do encoder tem <strong>2 sub-camadas</strong>. O decoder tem 3 (adiciona Cross-Attention), mas a estrutura e igual:</p>
+<div class="code-block"><span class="lang-tag">Estrutura de 1 camada do encoder</span>
+<pre><code>ENTRADA (token ja processado pela camada anterior)
+    │
+    ├── Sub-Camada 1: Multi-Head Self-Attention
+    │   ├── Calcula atencao entre todos os tokens (reuniao de equipe)
+    │   ├── + Conexao Residual (soma a entrada original — o atalho)
+    │   └── + LayerNorm (normaliza — o equalizador)
+    │
+    ├── Sub-Camada 2: Feed-Forward Network
+    │   ├── Cada token processa sozinho, sem olhar os outros
+    │   ├── + Conexao Residual (soma a entrada da FFN)
+    │   └── + LayerNorm (normaliza)
+    │
+    └── SAIDA (vai para a proxima camada)</code></pre></div>
 
-<p><strong>Feed-Forward Network (FFN) — "O processamento individual":</strong> A atenção misturou informação entre tokens (reunião de equipe). Agora cada token precisa processar sozinho o que aprendeu. A FFN é aplicada identicamente a cada token, mas de forma independente:</p>
-<div class="code-block"><span class="lang-tag">FFN: mesma transformação para cada token</span>
-<pre><code>Token 1 → FFN → Token 1'  (não olha para outros tokens)
-Token 2 → FFN → Token 2'
-Token 3 → FFN → Token 3'
+<h4>Parte 1 — Feed-Forward Network: O "Pensar Sozinho"</h4>
+<p><strong>Analogia da sala de aula:</strong> a Self-Attention e a discussao em grupo (todos os alunos trocam ideias). A FFN e cada aluno processando suas anotacoes individualmente na sua mesa. A FFN olha para <strong>1 token por vez</strong> — nao existe comunicacao entre tokens aqui.</p>
 
-Expande 512 → 2048 (rascunho em folha grande)
-Contrai 2048 → 512 (resumo em post-it)</code></pre></div>
-
-<p><strong>Conexão Residual — "O atalho da memória":</strong> Em vez de reescrever o documento do zero, faça pequenas edições no texto existente:</p>
-<div class="code-block"><span class="lang-tag">Residual: edite, não reescreva</span>
-<pre><code>Em vez de:  saída = Atenção(x)
-Usamos:     saída = Atenção(x) + x    ← "atalho"
-
-Se a camada não tiver nada útil a acrescentar,
-pode zerar sua saída e o sinal original passa intacto.
-O gradiente sempre tem um caminho direto de volta.</code></pre></div>
-
-<p><strong>LayerNorm — "O equalizador de áudio":</strong> Após somar Atenção(x) + x, os valores podem ter magnitudes muito diferentes. O LayerNorm ajusta cada token para média 0 e desvio padrão 1:</p>
-<div class="code-block"><span class="lang-tag">LayerNorm: normalize por token</span>
-<pre><code>Para cada token (512 dimensões):
-  média = soma(dimensões) / 512
-  desvio = sqrt(soma((dim - média)²) / 512)
-  normalizado = (dim - média) / desvio
-
-Depois: γ × normalizado + β  (γ e β são aprendidos)</code></pre></div>
-
-<h4>Matemática</h4>
-<p><strong>Feed-Forward Network com <a href="#glossario-relu" class="glossary-link">ReLU</a>:</strong></p>
+<p><strong>Como funciona:</strong> a FFN e uma rede neural de 2 camadas, aplicada de forma identica e independente a cada token:</p>
 <div class="math-block">
 $$\text{FFN}(x) = \text{ReLU}(xW_1 + b_1)W_2 + b_2$$
 <p style="text-align:center;font-size:13px;color:var(--muted);margin-top:8px">
-$W_1 \in \mathbb{R}^{512 \times 2048}$ (expansão $4\times$) &nbsp;|&nbsp; $W_2 \in \mathbb{R}^{2048 \times 512}$ (contração)
+$W_1 \in \mathbb{R}^{512 \times 2048}$ (expansao $4\times$) &nbsp;|&nbsp; $W_2 \in \mathbb{R}^{2048 \times 512}$ (contracao)
 </p>
 </div>
 
-<p><strong>LayerNorm:</strong></p>
+<div class="code-block"><span class="lang-tag">Passo a passo da FFN (d_model=512, d_ff=2048)</span>
+<pre><code>Passo 1: x (vetor de 512 dimensoes)
+         ↓  x W1 (matriz 512 x 2048)
+Passo 2: x_intermediario (vetor de 2048 dimensoes)  ← EXPANSAO 4x
+         ↓  ReLU (zera todos os valores negativos)
+Passo 3: x_ativado (vetor de 2048 dimensoes, ~metade zerado)
+         ↓  x W2 (matriz 2048 x 512)
+Passo 4: saida (vetor de 512 dimensoes)  ← CONTRACAO de volta</code></pre></div>
+
+<p><strong>Por que expandir para 2048 e depois contrair?</strong> Pense como um rascunho: voce expande suas ideias (escreve mais), filtra o que nao presta (ReLU zera), e depois resume (contrai). As 2048 dimensoes dao "espaco" para o modelo representar transformacoes complexas. Sem a ReLU, duas camadas lineares consecutivas colapsariam em uma unica transformacao linear: (xW1)W2 = x(W1W2). A ReLU quebra essa linearidade.</p>
+
+<p><strong>O que a FFN realmente aprende?</strong> Estudos mostram que a FFN funciona como uma <strong>memoria associativa</strong>: a expansao 4x cria um "espaco de enderecamento" onde padroes especificos sao ativados. W1 projeta o token nesse espaco, a ReLU seleciona quais padroes ativar, e W2 traduz de volta.</p>
+
+<h4>Parte 2 — Conexoes Residuais: O Atalho que Salva o Treino</h4>
+<p><strong>Contexto:</strong> ate 2015, treinar redes com mais de 20 camadas era quase impossivel — o gradiente desaparecia nas primeiras camadas (vanishing gradient). A ResNet (He et al., 2015) resolveu com uma ideia absurdamente simples: <strong>adicione um atalho</strong>.</p>
+
+<div class="code-block"><span class="lang-tag">Residual: edite, nao reescreva</span>
+<pre><code>Sem residual:  saida = Camada(entrada)       ← reescreve do zero
+Com residual:  saida = Camada(entrada) + entrada  ← edita o original
+                                                ↑
+                                           o ATALHO
+
+Se a camada nao tiver nada util a acrescentar,
+aprende F(x) ~ 0 e o sinal original passa intacto.</code></pre></div>
+
+<p><strong>Por que funciona?</strong> No backpropagation, a derivada de <code>F(x) + x</code> e <code>F'(x) + 1</code>. Esse <strong>+1</strong> garante que o gradiente sempre tem um caminho direto para as camadas iniciais — mesmo que F'(x) seja muito pequeno, o +1 garante que algo chegue. Alem disso, adicionar camadas NUNCA piora o resultado: no pior caso, as camadas novas aprendem F(x)~0.</p>
+
+<h4>Parte 3 — LayerNorm: O Equalizador de Audio</h4>
+<p><strong>Contexto:</strong> treinar redes profundas e instavel. Os valores podem explodir (1000+) ou desaparecer (0.0001). O BatchNorm (2015) resolveu para imagens, mas depende do batch — problematico para texto com sequencias de tamanhos variados. O LayerNorm (Ba et al., 2016) normaliza <strong>por token</strong>, independente do batch.</p>
+
+<p><strong>Analogia do equalizador:</strong> cada token e uma musica com 512 frequencias (dimensoes). Algumas frequencias estao altas demais, outras baixas demais. O LayerNorm ajusta o volume de cada token para media 0 e desvio padrao 1.</p>
+
 <div class="math-block">
 $$\mu = \frac{1}{d_{model}}\sum_i x_i \qquad \sigma = \sqrt{\frac{1}{d_{model}}\sum_i (x_i - \mu)^2}$$
 $$\text{LayerNorm}(x) = \gamma \cdot \frac{x - \mu}{\sigma} + \beta$$
 <p style="text-align:center;font-size:13px;color:var(--muted);margin-top:8px">
-$\gamma, \beta \in \mathbb{R}^{d_{model}}$ — aprendidos, permitem "desfazer" a normalização
+$\gamma, \beta \in \mathbb{R}^{d_{model}}$ — aprendidos, permitem "desfazer" a normalizacao se necessario
 </p>
 </div>
 
-<p><strong>BatchNorm vs LayerNorm — diferença crucial:</strong></p>
+<p><strong>Passo a passo:</strong> (1) calcula media μ das 512 dimensoes do token, (2) calcula desvio σ, (3) normaliza: x̂ = (x-μ)/σ, (4) escala e desloca: saida = γ·x̂ + β. γ e β sao aprendidos — dao a rede a liberdade de ajustar escala e posicao.</p>
+
+<p><strong>BatchNorm vs LayerNorm — diferenca crucial:</strong></p>
 <table>
   <tr><th></th><th>BatchNorm</th><th>LayerNorm</th></tr>
-  <tr><td>Normaliza...</td><td>Mesma dimensão, todos os tokens do batch</td><td>Todas as dimensões, cada token individualmente</td></tr>
-  <tr><td>Depende do batch?</td><td>Sim — ruim para batches pequenos</td><td>Não — perfeito para sequências</td></tr>
-  <tr><td>Inferência</td><td>Precisa de estatísticas móveis</td><td>Idêntico ao treino</td></tr>
+  <tr><td>Normaliza...</td><td>Mesma dimensao, todos os tokens do batch</td><td>Todas as dimensoes, cada token individualmente</td></tr>
+  <tr><td>Depende do batch?</td><td>Sim — ruim para batches pequenos</td><td>Nao — perfeito para sequencias</td></tr>
+  <tr><td>Inferencia</td><td>Precisa de estatisticas moveis</td><td>Identico ao treino</td></tr>
 </table>
 
-<h4>Ordem Exata em Cada Sub-Camada</h4>
-<div class="code-block"><span class="lang-tag">Pós-norm (Transformer original)</span>
-<pre><code>x entra
-  → SubLayer(x)      (atenção ou FFN)
-  → Dropout(0.1)
-  → + x              (conexão residual — o "atalho")
-  → LayerNorm        (equalizador)
-  → saída
+<h4>Juntando Tudo: A Camada Completa</h4>
+<div class="code-block"><span class="lang-tag">Fluxo exato de 1 camada (pos-norm, Transformer original)</span>
+<pre><code>x entra (512 dimensoes por token)
+│
+├── Sub-Camada 1: ATTENTION
+│   ├── Multi-Head Self-Attention(x)   ← tokens trocam informacao
+│   ├── Dropout (p=0.1)                ← desliga 10% dos valores
+│   ├── + x (RESIDUAL)                 ← ATALHO: soma o x original
+│   └── LayerNorm                      ← normaliza para μ=0, σ=1
+│       ↓
+│   x = LayerNorm(Attention(x) + x)
+│
+├── Sub-Camada 2: FFN
+│   ├── Feed-Forward(x) = ReLU(x·W1+b1)·W2+b2  ← processa sozinho
+│   ├── Dropout (p=0.1)
+│   ├── + x (RESIDUAL)                 ← ATALHO: soma o x da entrada da FFN
+│   └── LayerNorm
+│       ↓
+│   x = LayerNorm(FFN(x) + x)
+│
+└── SAIDA (vai para a proxima camada)</code></pre></div>
 
-Esta ordem se chama "pós-norm" (LayerNorm DEPOIS da residual).
-Modelos modernos (GPT, LLaMA) usam "pré-norm" (LayerNorm ANTES).</code></pre></div>
+<p><strong>Pos-norm vs Pre-norm:</strong></p>
+<div class="code-block"><span class="lang-tag">Duas ordens possiveis</span>
+<pre><code>Pos-norm (paper 2017):  x -> SubLayer(x) -> + x -> LayerNorm -> saida
+Pre-norm (GPT, LLaMA):  x -> LayerNorm -> SubLayer(x) -> + x -> saida
 
-<h4>Na Prática — Contagem de Parâmetros</h4>
+Modelos modernos preferem pre-norm: mais estavel no inicio do treino.</code></pre></div>
+
+<h4>As 6 Camadas do Encoder — O Que Realmente Acontece?</h4>
+<p>Esta e a pergunta mais importante: <strong>por que 6 camadas? O que muda de uma para a outra?</strong></p>
+
+<p><strong>A intuicao:</strong> pense nas 6 camadas como 6 rodadas de revisao de um texto. Cada camada refina a representacao:</p>
+
+<div class="code-block"><span class="lang-tag">A especializacao progressiva das 6 camadas</span>
+<pre><code>Frase original: "The cat sat on the mat"
+
+Camada 1: "OK, 'The' e artigo, 'cat' e substantivo, 'sat' e verbo..."
+          Aprende relacoes gramaticais LOCAIS (palavras vizinhas)
+
+Camada 2: "'cat' esta relacionado com 'sat' (sujeito-verbo)"
+          Aprende dependencias sintaticas de CURTO alcance
+
+Camada 3: "'on the mat' e um sintagma preposicional ligado a 'sat'"
+          Aprende estrutura sintatica de MEDIO alcance
+
+Camada 4: "'cat' e o agente, 'sat' e a acao, 'mat' e o local"
+          Aprende papeis semanticos
+
+Camada 5: "Isso descreve um gato sentado em um tapete"
+          Aprende significados de ALTO nivel
+
+Camada 6: "Representacao final refinada — pronta para o decoder"
+          Consolida tudo em um vetor rico e completo</code></pre></div>
+
+<p><strong>Os pesos sao DIFERENTES em cada camada.</strong> A estrutura e identica, mas cada camada tem seus proprios W_Q, W_K, W_V, W_O, W1, W2. E isso que permite que cada camada aprenda coisas diferentes:</p>
+
+<div class="code-block"><span class="lang-tag">6 camadas = 6 conjuntos de pesos independentes</span>
+<pre><code>Camada 1: Attention(W_Q1,W_K1,W_V1,W_O1) + FFN(W1_1,W2_1)
+Camada 2: Attention(W_Q2,W_K2,W_V2,W_O2) + FFN(W1_2,W2_2)
+...
+Camada 6: Attention(W_Q6,W_K6,W_V6,W_O6) + FFN(W1_6,W2_6)
+
+~3.15M parametros por camada x 6 = ~19M (encoder)</code></pre></div>
+
+<p><strong>Nao e um loop — e uma sequencia.</strong> Nao e a mesma camada rodando 6 vezes. Sao 6 camadas DIFERENTES empilhadas. A saida da camada 1 e a entrada da camada 2. E como uma linha de montagem com 6 estacoes, cada uma com suas proprias ferramentas.</p>
+
+<p><strong>O que os neuronios de cada camada detectam?</strong> Pesquisas de interpretabilidade mostram: <strong>Camadas 1-2:</strong> padroes superficiais (pontuacao, artigos). <strong>Camadas 3-4:</strong> sintaxe (sujeito-verbo, fronteiras de oracoes). <strong>Camadas 5-6:</strong> semantica (entidades nomeadas, topicos, relacoes conceituais). Isso nao foi programado — emergiu naturalmente do treino.</p>
+
+<p><strong>Por que 6 e nao 3 ou 100?</strong> Equilibrio entre profundidade (mais camadas = mais refinamento) e custo (mais parametros, mais tempo). 6 camadas = 65M parametros, suficiente para traducao. GPT-3 usa 96, PaLM usa 118. Cada camada adicional custa ~3.15M parametros e ~1.5 GFLOPs por token.</p>
+
+<h4>Impacto Pratico — Contagem de Parametros</h4>
 <table>
-  <tr><th>Componente</th><th>Parâmetros</th><th>Cálculo</th></tr>
-  <tr><td>Multi-Head Attention</td><td>~1.05M</td><td>4 × (512×512) = 1.05M</td></tr>
-  <tr><td>FFN (W₁ + W₂)</td><td>~2.1M</td><td>512×2048 + 2048×512 = 2.1M</td></tr>
-  <tr><td>2 LayerNorms</td><td>~2K</td><td>2 × 2 × 512 = 2048</td></tr>
-  <tr><td><strong>Total por camada</strong></td><td><strong>~3.15M</strong></td><td></td></tr>
-  <tr><td><strong>12 camadas</strong></td><td><strong>~37.8M</strong></td><td>Sem embeddings</td></tr>
-  <tr><td><strong>Modelo completo</strong></td><td><strong>~65M</strong></td><td>+ 2× embeddings (~38M)</td></tr>
+  <tr><th>Componente</th><th>Parametros</th><th>% da Camada</th></tr>
+  <tr><td>Multi-Head Attention (8 cabecas)</td><td>~1.05M</td><td>33%</td></tr>
+  <tr><td>FFN (W1 512->2048 + W2 2048->512)</td><td>~2.1M</td><td>67%</td></tr>
+  <tr><td>2 LayerNorms</td><td>~2K</td><td>&lt;0.1%</td></tr>
+  <tr><td><strong>Total por camada</strong></td><td><strong>~3.15M</strong></td><td>100%</td></tr>
+  <tr><td>Encoder (6 camadas)</td><td>~18.9M</td><td></td></tr>
+  <tr><td>Decoder (6 camadas)</td><td>~18.9M</td><td></td></tr>
+  <tr><td>Embeddings + outros</td><td>~27M</td><td></td></tr>
+  <tr><td><strong>TOTAL MODELO BASE</strong></td><td><strong>~65M</strong></td><td></td></tr>
 </table>
-<p>Na GPU: a FFN é a parte mais pesada em FLOPs. Para n=512: ~1 GFLOP por camada FFN vs ~0.5 GFLOP por camada de atenção. A expansão 4× (512→2048) é onde vive a maior parte do "conhecimento" do modelo.</p>
+<p>A FFN domina: 67% dos parametros de cada camada. E a parte mais "cara" do modelo.</p>
 
-<h4>Conexões</h4>
+<h4>Conexoes</h4>
 <ul>
-  <li><strong>Pré-norm vs Pós-norm:</strong> modelos modernos preferem pré-norm (LayerNorm ANTES da SubLayer) — treino mais estável, permite taxa de aprendizado maior sem warmup</li>
-  <li><strong>SwiGLU:</strong> substitui ReLU na FFN por uma função mais expressiva — usada em LLaMA, PaLM</li>
-  <li><strong>Gradient Checkpointing:</strong> descarta ativações intermediárias e recalcula durante o backward. Viável graças às conexões residuais que garantem caminho direto para o gradiente</li>
-  <li><strong>Deep Transformers (ViT, 100+ camadas):</strong> só são treináveis por causa dessas técnicas combinadas</li>
+  <li><strong>Pre-norm vs Pos-norm:</strong> modelos modernos (GPT, LLaMA) normalizam ANTES da sub-camada — mais estavel no inicio do treino, permite taxa de aprendizado maior sem warmup</li>
+  <li><strong>SwiGLU:</strong> substitui ReLU na FFN por uma funcao com gate aprendido — usada em LLaMA, PaLM. Melhora a qualidade sem aumentar parametros</li>
+  <li><strong>Gradient Checkpointing:</strong> descarta ativacoes intermediarias e recalcula durante o backward. Viavel gracas as conexoes residuais que garantem caminho direto para o gradiente</li>
+  <li><strong>Deep Transformers (ViT, GPT-3 96 camadas):</strong> so sao treinaveis por causa de residual + LayerNorm combinados</li>
 </ul>
 
-<h4>Perguntas de Revisão</h4>
+<h4>Perguntas de Revisao</h4>
 <ol>
-  <li>Qual a função da conexão residual? O que aconteceria se removêssemos todas elas de um Transformer de 12 camadas?</li>
-  <li>Por que a FFN expande de 512 para 2048 e depois contrai de volta? Por que não ficar em 512?</li>
-  <li>Qual a diferença entre BatchNorm e LayerNorm? Por que o Transformer usa LayerNorm?</li>
-  <li>Quantos parâmetros tem a FFN de uma camada? E o modelo base completo (~65M)? Qual componente domina?</li>
-  <li>Por que modelos modernos preferem pré-norm a pós-norm? Qual a implicação para estabilidade do treino?</li>
+  <li>Por que a FFN expande de 512 para 2048 e depois contrai de volta? O que a ReLU faz no meio?</li>
+  <li>O que acontece com o gradiente no backpropagation SEM conexao residual? E COM conexao residual?</li>
+  <li>Por que LayerNorm e nao BatchNorm no Transformer? Qual a diferenca crucial?</li>
+  <li>O que muda de uma camada para outra nas 6 camadas do encoder? Os pesos sao os mesmos?</li>
+  <li>Se cada camada tem ~3.15M parametros e a FFN ocupa 67% disso, por que a atencao (33%) e considerada a parte mais importante?</li>
 </ol>
-<p><strong>Exercício:</strong> Se a conexão residual permite pular qualquer camada, por que não treinar um Transformer com 1000 camadas? Qual o novo gargalo que aparece?</p>
+<p><strong>Exercicio:</strong> Se voce removesse TODAS as conexoes residuais de um Transformer de 6 camadas e tentasse treinar, o que aconteceria? Por que?</p>
 
 <div class="quiz-section" data-topic="ffn-residual">
   <h4>Checkpoint — Multipla Escolha</h4>
@@ -1460,11 +1545,11 @@ Modelos modernos (GPT, LLaMA) usam "pré-norm" (LayerNorm ANTES).</code></pre></
   </div>
 
   <div class="quiz-question" data-qid="4" data-correct="1">
-    <p class="quiz-q-text">5. Por que modelos modernos (GPT, LLaMA) preferem pre-norm a pos-norm?</p>
-    <label class="quiz-option"><input type="radio" name="t6_q4" value="0"><span class="letter">A</span> pre-norm e mais rapido de calcular</label>
-    <label class="quiz-option"><input type="radio" name="t6_q4" value="1"><span class="letter">B</span> pre-norm estabiliza melhor o treino em redes muito profundas (mais de 12 camadas)</label>
-    <label class="quiz-option"><input type="radio" name="t6_q4" value="2"><span class="letter">C</span> pos-norm foi descontinuado por problemas de patente</label>
-    <label class="quiz-option"><input type="radio" name="t6_q4" value="3"><span class="letter">D</span> pre-norm permite remover as conexoes residuais</label>
+    <p class="quiz-q-text">5. O que muda de uma camada para outra nas 6 camadas do encoder?</p>
+    <label class="quiz-option"><input type="radio" name="t6_q4" value="0"><span class="letter">A</span> Nada — a mesma camada executa 6 vezes em loop</label>
+    <label class="quiz-option"><input type="radio" name="t6_q4" value="1"><span class="letter">B</span> Os pesos (W_Q, W_K, W_V, W_O, W1, W2) sao DIFERENTES em cada camada — cada uma aprende coisas diferentes</label>
+    <label class="quiz-option"><input type="radio" name="t6_q4" value="2"><span class="letter">C</span> A estrutura muda — camadas 1-3 tem atencao, 4-6 tem so FFN</label>
+    <label class="quiz-option"><input type="radio" name="t6_q4" value="3"><span class="letter">D</span> Cada camada processa uma lingua diferente</label>
   </div>
 
   <div class="quiz-score"></div>
@@ -1476,7 +1561,7 @@ Modelos modernos (GPT, LLaMA) usam "pré-norm" (LayerNorm ANTES).</code></pre></
       </div>
     </article>
 
-    <!-- Transformer Completo -->
+    <!-- Transformer Completo --><!-- Transformer Completo -->
     <article class="topic" id="transformer-completo">
       <div class="topic-marker done"></div>
       <div class="topic-card">
