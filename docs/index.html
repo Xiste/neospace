@@ -3333,10 +3333,12 @@ $$\mathcal{L} = -\sum_i y_i \log(p_i)$$
 <p><strong>No Transformer:</strong> dropout aplicado após cada sub-camada, nos embeddings, e nos pesos de atenção. p=0.1 no paper original.</p>
 
 <!-- ===== ReLU ===== -->
-<h4 id="glossario-relu">⚡ ReLU (Rectified Linear Unit)</h4>
-<p>Função de ativação simples: <code>ReLU(x) = max(0, x)</code>. Se x é negativo, vira 0; se positivo, passa direto.</p>
-<p><strong>Intuição:</strong> um interruptor — ou o neurônio "dispara" (valor positivo) ou fica "desligado" (negativo vira zero). Simples mas a não-linearidade que permite redes profundas aprenderem funções complexas.</p>
-<p><strong>No Transformer:</strong> usada na FFN: <code>FFN(x) = ReLU(xW₁ + b₁)W₂ + b₂</code>. Modelos modernos (GPT, LLaMA) usam GELU ou SwiGLU.</p>
+<h4 id="glossario-relu">⚡ ReLU (Rectified Linear Unit) — Função de Ativação</h4>
+<p>Função de ativação: <code>ReLU(x) = max(0, x)</code>. Se x é negativo, vira 0; se positivo, passa direto com gradiente 1.</p>
+<p><strong>Contexto Histórico:</strong> antes da ReLU, usava-se <strong>sigmoid</strong> (comprime entre 0 e 1) e <strong>tanh</strong> (comprime entre -1 e 1). Essas funções saturam nas pontas — derivada ~0 — fazendo o gradiente <strong>desaparecer</strong> em redes profundas. A ReLU foi popularizada pelo AlexNet (2012): convergia <strong>6× mais rápido</strong> que tanh e venceu o ImageNet, inaugurando a era do deep learning.</p>
+<p><strong>Intuição:</strong> um interruptor de luz. Tensão positiva → corrente flui (saída = x). Tensão negativa → apaga (saída = 0). A mágica está no que ela NÃO faz: não comprime valores positivos. Um gradiente viajando por 50 camadas é multiplicado por ~1 a cada passo (ReLU) em vez de ~0.25 (sigmoid). A informação chega intacta.</p>
+<p><strong>"Dying ReLU":</strong> se um neurônio recebe consistentemente entradas negativas, a ReLU zera a saída, derivada = 0, e o neurônio <strong>morre</strong> — nunca mais aprende. Soluções: <strong>Leaky ReLU</strong> (pequena inclinação para negativos), <strong>GELU</strong> (transição suave, usada no GPT/BERT), <strong>SwiGLU</strong> (gate aprendido, LLaMA).</p>
+<p><strong>No Transformer:</strong> usada na FFN: <code>FFN(x) = ReLU(xW₁ + b₁)W₂ + b₂</code>. Expande 512→2048, zera negativos (~metade), contrai 2048→512. Modelos modernos trocaram por GELU (GPT) ou SwiGLU (LLaMA).</p>
 
 <!-- ===== Ensemble ===== -->
 <h4 id="glossario-ensemble">🤝 Ensemble</h4>

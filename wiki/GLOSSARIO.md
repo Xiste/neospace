@@ -449,15 +449,36 @@ Técnica de regularização que, durante o treino, **zera aleatoriamente** uma f
 
 ---
 
-## ReLU (Rectified Linear Unit)
+## ReLU (Rectified Linear Unit) — Função de Ativação
 
 ### O que é
 
-Função de ativação simples: `ReLU(x) = max(0, x)`. Se x é negativo, vira 0; se é positivo, passa direto.
+Função de ativação: `ReLU(x) = max(0, x)`. Se x é negativo, vira 0; se é positivo, passa direto com gradiente 1.
 
-**Intuição:** um interruptor: ou o neurônio "dispara" (valor positivo passa) ou fica "desligado" (negativo vira zero). É simples mas funciona — a não-linearidade que permite redes profundas aprenderem funções complexas.
+### Contexto Histórico
 
-**No Transformer:** usada na Feed-Forward Network: `FFN(x) = ReLU(xW₁ + b₁)W₂ + b₂`. Modelos modernos (GPT, LLaMA) substituíram por funções como GELU ou SwiGLU.
+Antes da ReLU, usava-se **sigmoid** (comprime entre 0 e 1) e **tanh** (comprime entre -1 e 1). Essas funções saturam nas pontas — derivada ~0 — fazendo o gradiente **desaparecer** em redes profundas (multiplicar vários números << 1). A ReLU foi popularizada pelo AlexNet (2012) que mostrou convergência **6× mais rápida** que tanh e venceu o ImageNet, inaugurando a era do deep learning.
+
+### Intuição
+
+Um interruptor de luz: se a tensão (x) é positiva, a corrente flui livremente (saída = x). Se é negativa, apaga (saída = 0).
+
+A mágica está no que ela NÃO faz: ao contrário da sigmoid, não comprime valores positivos. Um gradiente viajando por 50 camadas é multiplicado por ~1 a cada passo (ReLU) em vez de ~0.25 (sigmoid). A informação chega intacta.
+
+Analogia: passar uma mensagem por 50 pessoas. Com sigmoid, cada pessoa resume — na 50ª, a mensagem se perdeu. Com ReLU, cada pessoa ou repete exatamente (se positiva) ou silencia (se negativa). A mensagem sobrevive.
+
+### O Lado Ruim — "Dying ReLU"
+
+Se um neurônio consistentemente recebe entradas que produzem valores negativos, a ReLU zera a saída, a derivada é 0, e o neurônio **morre** — nunca mais aprende. Soluções: **Leaky ReLU** (pequena inclinação para negativos), **GELU** (transição suave, usada no GPT/BERT), **SwiGLU** (gate aprendido, usada no LLaMA).
+
+### No Transformer
+
+Usada na Feed-Forward Network: `FFN(x) = ReLU(xW₁ + b₁)W₂ + b₂`. Transforma 512 → 2048 dimensões, zera negativos (~metade), volta para 512. Modelos modernos substituíram por GELU (GPT) ou SwiGLU (LLaMA).
+
+### Para Aprofundar
+
+- Nair & Hinton (2010) — *Rectified Linear Units Improve Restricted Boltzmann Machines* (paper original)
+- Krizhevsky et al. (2012) — *ImageNet Classification with Deep Convolutional Neural Networks* (AlexNet, popularizou ReLU)
 
 ---
 
